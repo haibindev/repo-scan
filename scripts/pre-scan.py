@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-repo-scan pre-scan script v3
+repo-scan pre-scan script v4
 Collects raw data from a source code directory for AI-powered audit.
 Cross-platform: Windows / macOS / Linux
 
 Usage:
-    python pre-scan.py /path/to/project
-    python pre-scan.py /path/to/project -o scan-result.md
-    python pre-scan.py /path/to/project -c /path/to/ignore-patterns.json
+    python pre-scan.py /path/to/project                          # stdout
+    python pre-scan.py /path/to/project -o scan-result.md        # single file
+    python pre-scan.py /path/to/project -d ./scan-output         # hierarchical
+    python pre-scan.py /path/to/project -c /path/to/config.json  # custom config
 """
 
 import os
@@ -86,6 +87,11 @@ BUILD_EXT_MAP = {
     ".xcodeproj": "Xcode",
     ".pro":       "qmake",
 }
+
+# ── All source extensions (union of all tech stacks) ──
+SOURCE_EXTS = set()
+for _exts in TECH_STACKS.values():
+    SOURCE_EXTS.update(_exts)
 
 # ── Version detection patterns ──
 VERSION_HEADER_PATTERNS = [
@@ -423,6 +429,111 @@ class Scanner:
         _walk(root_path, "", 0)
         return lines
 
+    def is_project_aggregate(self, dir_path):
+        """Check if a directory is a project aggregate.
+
+        A directory is an aggregate if its root level contains:
+        - Any build configuration file (CMakeLists.txt, .sln, build.gradle, etc.), OR
+        - 3+ source code files (.c/.cpp/.java/.swift/.ts etc.)
+        """
+        try:
+            entries = os.listdir(dir_path)
+        except (PermissionError, OSError):
+            return False
+
+        source_count = 0
+        for entry in entries:
+            full = os.path.join(dir_path, entry)
+            if os.path.isfile(full):
+                if entry in BUILD_FILE_MAP:
+                    return True
+                ext = os.path.splitext(entry)[1].lower()
+                if ext in BUILD_EXT_MAP:
+                    return True
+                if ext in SOURCE_EXTS:
+                    source_count += 1
+                    if source_count >= 3:
+                        return True
+            elif os.path.isdir(full):
+                ext = os.path.splitext(entry)[1].lower()
+                if ext in BUILD_EXT_MAP:
+                    return True
+        return False
+
+    def analyze_hierarchy(self, root_path):
+        """Recursively analyze directory hierarchy for project aggregates.
+
+        Returns tree: {name, path, is_aggregate, build_systems, children[]}
+        Only includes children that are aggregates or contain aggregate descendants.
+        """
+        name = os.path.basename(root_path)
+        is_agg = self.is_project_aggregate(root_path)
+        build_systems = self.detect_build_systems(root_path, max_depth=1) if is_agg else set()
+
+        children = []
+        try:
+            entries = sorted(os.listdir(root_path))
+        except (PermissionError, OSError):
+            entries = []
+
+        for entry in entries:
+            entry_path = os.path.join(root_path, entry)
+            if not os.path.isdir(entry_path):
+                continue
+            if entry.startswith('.'):
+                continue
+            if entry in self.noise_dirs:
+                continue
+            if entry in self.container_names:
+                continue
+            if match_known_lib(entry, self.known_libs):
+                continue
+
+            child = self.analyze_hierarchy(entry_path)
+            if child['is_aggregate'] or child['children']:
+                children.append(child)
+
+        return {
+            'name': name,
+            'path': root_path,
+            'is_aggregate': is_agg,
+            'build_systems': build_systems,
+            'children': children,
+        }
+
+    def quick_source_stats(self, dir_path):
+        """Quick stats: source file count, total source size, tech stacks found.
+
+        Skips noise and third-party directories.
+        """
+        file_count = 0
+        total_size = 0
+        stacks_found = set()
+
+        for dirpath, dirnames, filenames in os.walk(dir_path):
+            # Skip noise and thirdparty subdirs
+            dirnames[:] = [d for d in dirnames
+                           if d not in self.noise_dirs
+                           and d not in self.container_names
+                           and not d.startswith('.')
+                           and not match_known_lib(d, self.known_libs)]
+
+            for f in filenames:
+                ext = os.path.splitext(f)[1].lower()
+                for stack_name, exts in TECH_STACKS.items():
+                    if ext in exts:
+                        fp = os.path.join(dirpath, f)
+                        try:
+                            sz = os.path.getsize(fp)
+                        except OSError:
+                            sz = 0
+                        file_count += 1
+                        total_size += sz
+                        stacks_found.add(stack_name)
+                        break
+
+        return file_count, total_size, stacks_found
+
 
 def get_git_info_for_repo(repo_path):
     """Collect git summary for a single repo."""
@@ -450,7 +561,8 @@ def get_git_info_for_repo(repo_path):
         return None
 
 
-def generate_report(root_path, config_path=None):
+def generate_detail_report(root_path, config_path=None):
+    """Generate full 8-chapter detail report for a single project aggregate."""
     root_path = os.path.abspath(root_path)
     noise_dirs, container_names, known_libs, skip_dup = load_config(config_path)
     scanner = Scanner(noise_dirs, container_names, known_libs, skip_dup)
@@ -668,10 +780,116 @@ def generate_report(root_path, config_path=None):
     return "\n".join(lines)
 
 
+def generate_index_report(root_path, hierarchy, scanner):
+    """Generate lightweight index.md for a container/aggregate with sub-projects."""
+    lines = []
+    w = lines.append
+
+    name = os.path.basename(root_path)
+    children = hierarchy['children']
+
+    w(f"# Scan Index: {name}")
+    w("")
+    w(f"- **Target**: `{root_path}`")
+    w(f"- **Scan Time**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    w(f"- **Sub-projects**: {len(children)}")
+    w("")
+    w("| Project | Build System | Source Files | Source Size | Tech Stack |")
+    w("|---------|-------------|-------------|------------|------------|")
+
+    for child in children:
+        child_name = child['name']
+        child_path = child['path']
+
+        builds = scanner.detect_build_systems(child_path, max_depth=2)
+        build_str = ", ".join(sorted(builds)) if builds else "-"
+
+        file_count, total_size, stacks = scanner.quick_source_stats(child_path)
+        stack_str = ", ".join(sorted(stacks)) if stacks else "-"
+
+        # Determine link: leaf aggregate → name.md, nested → name/index.md
+        child_has_sub = any(c['is_aggregate'] or c['children'] for c in child.get('children', []))
+        if child['is_aggregate'] and not child_has_sub:
+            link = f"{child_name}.md"
+        else:
+            link = f"{child_name}/index.md"
+
+        w(f"| [{child_name}]({link}) | {build_str} | {file_count} | {format_size(total_size)} | {stack_str} |")
+
+    w("")
+    return "\n".join(lines)
+
+
+def generate_hierarchical_output(root_path, output_dir, config_path=None):
+    """Main entry point for hierarchical (directory-based) output.
+
+    Detects project aggregates and generates index + detail reports accordingly.
+    """
+    root_path = os.path.abspath(root_path)
+    noise_dirs, container_names, known_libs, skip_dup = load_config(config_path)
+    scanner = Scanner(noise_dirs, container_names, known_libs, skip_dup)
+
+    print("Analyzing project hierarchy...", file=sys.stderr)
+    hierarchy = scanner.analyze_hierarchy(root_path)
+
+    os.makedirs(output_dir, exist_ok=True)
+    _output_hierarchy(hierarchy, output_dir, scanner, config_path)
+
+
+def _output_hierarchy(node, output_dir, scanner, config_path):
+    """Recursively output hierarchy: index.md for containers, detail .md for leaf aggregates."""
+    name = node['name']
+    path = node['path']
+    has_sub = bool(node['children'])
+
+    if node['is_aggregate'] and not has_sub:
+        # Rule 1 & 4: Leaf aggregate → single detail file
+        print(f"Generating detail report for: {name}", file=sys.stderr)
+        report = generate_detail_report(path, config_path)
+        output_file = os.path.join(output_dir, f"{name}.md")
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(report)
+        print(f"  -> {output_file}", file=sys.stderr)
+        return
+
+    # Rules 2 & 3: Has sub-aggregates → index + recurse
+    os.makedirs(output_dir, exist_ok=True)
+
+    print(f"Generating index for: {name}", file=sys.stderr)
+    index_content = generate_index_report(path, node, scanner)
+    index_file = os.path.join(output_dir, "index.md")
+    with open(index_file, "w", encoding="utf-8") as f:
+        f.write(index_content)
+    print(f"  -> {index_file}", file=sys.stderr)
+
+    # Process each child
+    for child in node['children']:
+        child_has_sub = any(c['is_aggregate'] or c['children'] for c in child.get('children', []))
+
+        if child['is_aggregate'] and not child_has_sub:
+            # Leaf aggregate → detail report in current output_dir
+            print(f"Generating detail report for: {child['name']}", file=sys.stderr)
+            report = generate_detail_report(child['path'], config_path)
+            output_file = os.path.join(output_dir, f"{child['name']}.md")
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(report)
+            print(f"  -> {output_file}", file=sys.stderr)
+        else:
+            # Has sub-aggregates or is container → recurse into subdirectory
+            child_output_dir = os.path.join(output_dir, child['name'])
+            _output_hierarchy(child, child_output_dir, scanner, config_path)
+
+
 def main():
     parser = argparse.ArgumentParser(description="repo-scan pre-scan: collect source code metrics")
     parser.add_argument("path", help="Target source code directory")
-    parser.add_argument("-o", "--output", default="", help="Output file path (default: stdout)")
+
+    output_group = parser.add_mutually_exclusive_group()
+    output_group.add_argument("-o", "--output", default="",
+                              help="Output file path for single-file report (default: stdout)")
+    output_group.add_argument("-d", "--output-dir", default="",
+                              help="Output directory for hierarchical multi-file output")
+
     parser.add_argument("-c", "--config", default="", help="Path to ignore-patterns.json config file")
     args = parser.parse_args()
 
@@ -679,14 +897,21 @@ def main():
         print(f"Error: '{args.path}' is not a valid directory", file=sys.stderr)
         sys.exit(1)
 
-    report = generate_report(args.path, args.config if args.config else None)
+    config = args.config if args.config else None
 
-    if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
-            f.write(report)
-        print(f"\nScan result saved to: {args.output}", file=sys.stderr)
+    if args.output_dir:
+        # Hierarchical output mode
+        generate_hierarchical_output(args.path, args.output_dir, config)
+        print(f"\nHierarchical scan complete. Output in: {os.path.abspath(args.output_dir)}", file=sys.stderr)
     else:
-        print(report)
+        # Single-file output mode (backward compatible)
+        report = generate_detail_report(args.path, config)
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                f.write(report)
+            print(f"\nScan result saved to: {args.output}", file=sys.stderr)
+        else:
+            print(report)
 
 
 if __name__ == "__main__":

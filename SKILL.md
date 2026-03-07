@@ -23,11 +23,33 @@ allowed-tools: Bash, Read, Glob, Grep, Write, Edit
 
 ### Step 0：运行预扫描脚本
 
+脚本为纯 Python 3 实现，跨平台，零依赖。支持两种输出模式：
+
+#### 模式 A：分级输出（推荐，适合中大型项目或工程聚合体）
+
+```bash
+python "${CLAUDE_SKILL_DIR}/scripts/pre-scan.py" "$ARGUMENTS" -d "$ARGUMENTS/scan-output"
+```
+
+脚本自动检测"工程聚合体"（含构建配置或 ≥3 源码文件的目录），按层级生成：
+- `index.md`：轻量汇总表（每个子项目一行：名称、构建系统、文件数、体积、技术栈）
+- `{子项目}.md`：完整 8 章节详细报告
+
+**判定规则：**
+1. 目标本身是聚合体且无子聚合体 → 单文件 `{name}.md`
+2. 目标有子聚合体 → `index.md` + 每个子项目各自的报告
+3. 嵌套聚合体 → 递归生成子目录结构
+
+#### 模式 B：单文件输出（小型项目或向后兼容）
+
 ```bash
 python "${CLAUDE_SKILL_DIR}/scripts/pre-scan.py" "$ARGUMENTS" -o "$ARGUMENTS/repo-scan-data.md"
 ```
 
-脚本为纯 Python 3 实现，跨平台，零依赖。自动输出：
+`-o` 和 `-d` 互斥。不指定任何输出参数时输出到 stdout。
+
+#### 脚本输出内容（每个详细报告包含 8 章节）
+
 1. 总体统计（项目代码/三方库/构建产物 三分类）
 2. 顶级目录分解（含构建系统识别、三方库标记）
 3. 按技术栈分类的源码统计
@@ -41,7 +63,8 @@ python "${CLAUDE_SKILL_DIR}/scripts/pre-scan.py" "$ARGUMENTS" -o "$ARGUMENTS/rep
 
 ### Step 1：读取预扫描结果
 
-读取 `$ARGUMENTS/repo-scan-data.md`，获取全局视图。
+- **分级模式**：先读取 `scan-output/index.md` 获取全局视图，然后按子项目逐个处理
+- **单文件模式**：读取 `$ARGUMENTS/repo-scan-data.md`，获取全局视图
 
 ---
 
@@ -77,6 +100,19 @@ python "${CLAUDE_SKILL_DIR}/scripts/pre-scan.py" "$ARGUMENTS" -o "$ARGUMENTS/rep
 - **仅记录清单**：库名、版本、所在位置、被哪些模块引用
 - **评估适当性**：版本是否过于陈旧？是否有更好的替代方案？是否存在已知安全漏洞（根据你的知识判断）？
 - **标注实际使用**：从项目代码的 `#include`/`import` 推断实际使用了三方库的哪些能力
+
+---
+
+## 分级输出分析策略
+
+当使用 `-d` 分级输出模式时，按以下流程执行：
+
+1. **读取 `index.md`**：获取子项目列表和轻量汇总
+2. **逐个处理子项目**：每次只对一个子聚合体做完整三段式分析（资产总览树 → 模块级描述 → 资产定级表）
+3. **将每个子项目的分析结果写入对应的 `{子项目}.md`**（追加到预扫描数据之后）
+4. **最终更新顶层 `index.md`**：在汇总表中补充各子项目的判决定级
+
+**优势**：每个子项目的详细报告独立，AI 每次只需处理单个项目的上下文，避免超长报告超出处理能力。
 
 ---
 
