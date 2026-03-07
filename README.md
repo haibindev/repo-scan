@@ -7,24 +7,51 @@
 
 **中文** | [English](README_en.md)
 
-> Agent 技能：全面的源码资产扫描和分析工具。重构之前，先摸清家底。
+> npm 有 audit，pip 有 safety，Go 有 mod tidy——**C++ 有什么？**
+>
+> 重构之前，先摸清家底。
 
 ![repo-scan banner](images/banner.jpg)
 
 ---
 
+## 为什么需要它
+
+你以为你在维护 23 万个文件。跑完 repo-scan 才发现——**只有 8,500 个是自己写的**，其余全是三方库和构建产物。
+
+现有工具都是**单生态纵向工具**，没有一个能横跨技术栈回答"我到底有什么"：
+
+| 工具 | 覆盖范围 | 能做 | 做不到 |
+|------|---------|------|--------|
+| npm audit / depcheck | JS/TS | 安全漏洞、未使用依赖 | 不管 C++/Java/iOS |
+| clang-tidy / cppcheck | C/C++ | 代码风格和 bug | 不统计资产、不检测重复 |
+| SonarQube | 多语言 | 代码质量指标 | 需要服务器，不做资产分类 |
+| **repo-scan** | **C/C++, Java, iOS, Web** | **资产清查、三方库识别、重复检测、Git 活跃度** | 不做安全扫描、不替代 linter |
+
+**它不是又一个 linter，是重构前的资产普查工具。**
+
+### 谁需要它
+
+- **C/C++ 开发者** — 这个生态没有类似工具。三方库散落在 vendor/ 里，版本要从头文件 `#define` 里人肉找
+- **全栈 / 跨平台团队** — Electron (JS + C++ native)、React Native (TS + Java + OC)、混合 monorepo，没有工具给你全局视图
+- **架构师 / 技术管理者** — 重构、合并、商业化决策前，需要一份数据驱动的资产底账
+- **前端开发者** — 如果你的项目只有一个 package.json，depcheck 够了；但一旦涉及 native 模块或多技术栈，你也需要它
+
+---
+
 ## 它能做什么
 
-**repo-scan** 对你的代码仓库进行扫描，生成详细的资产清单报告。专为拥有大量历史代码的团队设计——帮助你在重构、合并或商业化决策之前，快速了解现有资产状况。
+**repo-scan** 对代码仓库做一次完整的资产清查。Python 3 零依赖，一行命令跑完。
 
 ### 核心能力
 
-- **三分类扫描** — 将项目文件自动归类为 **项目代码** / **三方依赖** / **构建产物**，精确统计各自体量
+- **三分类扫描** — 自动将文件归类为 **项目代码** / **三方依赖** / **构建产物**，精确统计占比
 - **三方库识别与版本检测** — 自动识别 50+ 已知三方库（FFmpeg、Boost、OpenSSL 等），从 VERSION 文件、头文件 `#define`、`package.json`、`CMakeLists.txt` 等提取版本号
-- **多技术栈** — C/C++、Java/Android、iOS (OC/Swift)、Web (TS/JS/Vue) 四大生态全覆盖
+- **四大技术栈** — C/C++、Java/Android、iOS (OC/Swift)、Web (TS/JS/Vue) 全覆盖
 - **代码重复检测** — 发现跨目录的同名模块（疑似 copy-paste），自动排除三方库误报
-- **Git 活跃度分析** — 自动发现所有子仓库，统计提交历史和活跃度
-- **Token 节约策略** — AI 分析采用"文件名推断→关键文件精读→质量抽样"三层策略
+- **Git 活跃度分析** — 自动发现所有子仓库，统计提交历史（哪些模块两年没人动了？）
+- **分级报告输出** — 大型 monorepo 自动拆分为 index + 子项目报告，不超出 AI 上下文
+- **AI Token 节约** — "文件名推断→关键文件精读→质量抽样"三层策略，不做穷举式逐文件阅读
 
 ## 输出格式
 
@@ -72,7 +99,8 @@ git clone https://github.com/haibindev/repo-scan.git .claude/skills/repo-scan
 
 ```bash
 python scripts/pre-scan.py /path/to/project                    # 输出到终端
-python scripts/pre-scan.py /path/to/project -o report.md       # 保存到文件
+python scripts/pre-scan.py /path/to/project -o report.md       # 单文件报告
+python scripts/pre-scan.py /path/to/project -d ./scan-output   # 分级目录报告（大型项目推荐）
 python scripts/pre-scan.py /path/to/project -c config.json     # 自定义配置
 ```
 
