@@ -1,0 +1,43 @@
+{
+  "_comment": "repo-scan 可配置的忽略和识别模式。使用者可按需增删。",
+
+  "noise_dirs": {
+    "_comment": "构建产物/缓存目录，扫描时自动排除",
+    "common": [".git", ".svn", ".hg", ".vs", ".idea", ".vscode", "__pycache__", "obj", "tmp", "temp"],
+    "cpp": ["Debug", "Release", "x64", "x86", "ipch", "cmake-build-debug", "cmake-build-release", ".vs"],
+    "java_android": [".gradle", "build", "target", ".apt_generated", "generated"],
+    "ios": ["DerivedData", "Pods", ".build", "xcuserdata"],
+    "web": ["node_modules", "dist", ".next", ".nuxt", ".output", "coverage"],
+    "rust": ["target"]
+  },
+
+  "thirdparty_dirs": {
+    "_comment": "已知的三方库/外部依赖目录名，脚本会标记但不深入分析",
+    "container_names": ["3party", "3rd_party", "third_party", "thirdparty", "vendor", "external", "deps", "libs", "Pods"],
+    "known_libs": [
+      "ffmpeg", "libavcodec", "libavdevice", "libavfilter", "libavformat", "libavutil", "libswresample", "libswscale",
+      "live555", "SDL2", "SDL2-*",
+      "boost", "boost_*",
+      "librtmp", "libx264", "libx265", "libfaac", "libfaad", "libfdk-aac", "libyuv", "libvpx", "libopus",
+      "libjpeg", "libpng", "libfreeimage", "libcurl", "libjson", "liblua",
+      "openssl", "zlib", "protobuf", "gtest", "googletest",
+      "opencv*", "baseclasses", "dshow",
+      "asio", "websocketpp", "nlohmann",
+      "libonvif", "onvif", "gsoap",
+      "freetype", "harfbuzz", "icu", "sqlite", "leveldb", "lmdb",
+      "tinyxml", "tinyxml2", "pugixml", "rapidjson", "cjson",
+      "spdlog", "fmt", "abseil*", "grpc", "cares"
+    ]
+  },
+
+  "skip_duplicate_names": {
+    "_comment": "重复检测时忽略的通用/非代码目录名",
+    "names": [
+      "res", "bin", "doc", "docs", "include", "includes", "hooks", "info",
+      "logs", "refs", "config", "conf", "html", "plugins", "temp", "test", "tests",
+      "objects", "static", "src", "detail", "cmake", "m4", "po",
+      "prop-base", "props", "text-base", "Properties",
+      "libavcodec", "libavdevice", "libavfilter", "libavformat", "libavutil", "libswresample", "libswscale"
+    ]
+  }
+}
