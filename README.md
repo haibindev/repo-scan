@@ -3,102 +3,102 @@
 [![Python 3.6+](https://img.shields.io/badge/Python-3.6+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-lightgrey)]()
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-Skill-7B61FF?logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48L3N2Zz4=)]()
+[![Agent Skill](https://img.shields.io/badge/Agent-Skill-7B61FF)]()
 
-[中文文档](README_zh.md) | **English**
+**中文** | [English](README_en.md)
 
-> A Claude Code skill for comprehensive source code asset auditing. Know what you have before you refactor.
+> Agent 技能：全面的源码资产审计工具。重构之前，先摸清家底。
 
 ---
 
-## What It Does
+## 它能做什么
 
-**repo-scan** scans your codebase and generates a detailed asset inventory report, helping teams understand large legacy codebases before making refactoring, consolidation, or commercialization decisions.
+**repo-scan** 对你的代码仓库进行扫描，生成详细的资产清单报告。专为拥有大量历史代码的团队设计——帮助你在重构、合并或商业化决策之前，快速了解现有资产状况。
 
-### Key Features
+### 核心能力
 
-- **Three-way classification** — Automatically categorizes files into **project code** / **third-party dependencies** / **build artifacts** with accurate size metrics
-- **Third-party detection & versioning** — Auto-identifies 50+ known libraries (FFmpeg, Boost, OpenSSL, etc.) and extracts version info from VERSION files, header `#define`s, `package.json`, `CMakeLists.txt`, etc.
-- **Multi-tech-stack** — C/C++, Java/Android, iOS (OC/Swift), Web (TS/JS/Vue) — all four ecosystems covered
-- **Code duplication detection** — Finds duplicate directory names across the project, auto-excludes third-party false positives
-- **Git activity analysis** — Auto-discovers all sub-repositories with commit history and activity levels
-- **Token-efficient AI strategy** — Three-layer analysis: filename inference → key file reading → quality sampling
+- **三分类扫描** — 将项目文件自动归类为 **项目代码** / **三方依赖** / **构建产物**，精确统计各自体量
+- **三方库识别与版本检测** — 自动识别 50+ 已知三方库（FFmpeg、Boost、OpenSSL 等），从 VERSION 文件、头文件 `#define`、`package.json`、`CMakeLists.txt` 等提取版本号
+- **多技术栈** — C/C++、Java/Android、iOS (OC/Swift)、Web (TS/JS/Vue) 四大生态全覆盖
+- **代码重复检测** — 发现跨目录的同名模块（疑似 copy-paste），自动排除三方库误报
+- **Git 活跃度分析** — 自动发现所有子仓库，统计提交历史和活跃度
+- **Token 节约策略** — AI 分析采用"文件名推断→关键文件精读→质量抽样"三层策略
 
-## Output
+## 输出格式
 
-Three-section audit report:
+三段式审计报告：
 
-| Section | Content |
-|---------|---------|
-| **Architecture Tree** | Real physical directory structure with third-party and build artifacts marked |
-| **Module Descriptions** | Functionality, core class names, dependencies, third-party references (with version assessment), code quality per module |
-| **Asset Triage Table** | Global summary with four-level verdict: **Core Asset** / **Extract & Merge** / **Rebuild** / **Deprecate** |
+| 段落 | 内容 |
+|------|------|
+| **资产总览树** | 真实物理目录结构，三方库和构建产物已标记 |
+| **模块级描述** | 每个模块的功能、核心类名、依赖关系、三方库引用（含版本评估）、代码质量 |
+| **资产定级表** | 全局汇总，四级判决：**核心基石** / **提纯合并** / **重塑提取** / **彻底淘汰** |
 
-## Project Structure
+## 项目结构
 
 ```
 repo-scan/
-├── SKILL.md                       # Skill definition (Claude Code entry point)
-├── reference.md                   # Tech stack audit reference tables
+├── SKILL.md                       # 技能主文件（Agent 加载入口）
+├── reference.md                   # 各技术栈审计维度速查表
 ├── config/
-│   └── ignore-patterns.json       # Configurable ignore/recognition patterns
+│   └── ignore-patterns.json       # 可配置的忽略/识别模式
 └── scripts/
-    └── pre-scan.py                # Pre-scan script (Python 3, zero deps)
+    └── pre-scan.py                # 预扫描脚本（Python 3，零依赖）
 ```
 
-## Installation
+## 安装
 
-Clone into your Claude Code skills directory:
+将本仓库克隆到 Agent 的技能目录：
 
 ```bash
-# Global skills directory
+# 全局技能目录
 git clone https://github.com/haibindev/repo-scan.git ~/.claude/skills/repo-scan
 
-# Or project-level
+# 或项目级技能目录
 git clone https://github.com/haibindev/repo-scan.git .claude/skills/repo-scan
 ```
 
-## Usage
+## 使用方法
 
-### As a Claude Code Skill
+### 作为 Agent 技能
 
 ```
 /repo-scan /path/to/my-project
 ```
 
-### Standalone Pre-scan Script
+### 单独运行预扫描脚本
 
 ```bash
-python scripts/pre-scan.py /path/to/project                    # print to stdout
-python scripts/pre-scan.py /path/to/project -o report.md       # save to file
-python scripts/pre-scan.py /path/to/project -c config.json     # custom config
+python scripts/pre-scan.py /path/to/project                    # 输出到终端
+python scripts/pre-scan.py /path/to/project -o report.md       # 保存到文件
+python scripts/pre-scan.py /path/to/project -c config.json     # 自定义配置
 ```
 
-### Pre-scan Output Sections
+### 预扫描输出章节
 
-| # | Section | Description |
-|---|---------|-------------|
-| 1 | Overall Statistics | Three-way split: project / third-party / build artifacts |
-| 2 | Top-Level Breakdown | File count, size, build system, classification per directory |
-| 3 | Tech Stack Stats | Per-stack (C/C++, Java, iOS, Web) source file counts |
-| 4 | Third-Party Deps | Detected libraries with name, version, location, size |
-| 5 | Code Duplication | Directories appearing 3+ times (potential copy-paste) |
-| 6 | Directory Tree | Clean tree with noise filtered and third-party marked |
-| 7 | Git Activity | Commit history and activity for all discovered repos |
-| 8 | Noise Summary | Build artifact sizes aggregated by type |
+| # | 章节 | 说明 |
+|---|------|------|
+| 1 | 总体统计 | 项目代码 / 三方库 / 构建产物 三分类统计 |
+| 2 | 顶级目录分解 | 每个顶级目录的文件数、体积、构建系统、分类标记 |
+| 3 | 技术栈统计 | 按技术栈（C/C++、Java、iOS、Web）分类统计源码文件 |
+| 4 | 三方依赖清单 | 已识别的三方库（库名、版本、位置、体积） |
+| 5 | 代码重复检测 | 同名目录出现 3+ 次的疑似代码重复 |
+| 6 | 目录树 | 过滤噪声、标记三方库的清洁目录树 |
+| 7 | Git 活跃度 | 所有子仓库的提交历史和活跃度 |
+| 8 | 噪声汇总 | 构建产物按类型聚合统计 |
 
-## Configuration
+## 自定义配置
 
-Edit `config/ignore-patterns.json` to customize patterns:
+编辑 `config/ignore-patterns.json` 自定义忽略和识别模式：
 
 ```jsonc
 {
   "noise_dirs": {
-    "common": [".git", ".svn", "obj", "tmp"],
-    "cpp": ["Debug", "Release", "x64", "ipch"],
-    "java_android": [".gradle", "build", "target"],
-    "ios": ["DerivedData", "Pods", "xcuserdata"],
-    "web": ["node_modules", "dist", ".next"]
+    "common": [".git", ".svn", "obj", "tmp"],       // 通用噪声目录
+    "cpp": ["Debug", "Release", "x64", "ipch"],      // C/C++ 构建产物
+    "java_android": [".gradle", "build", "target"],   // Java/Android
+    "ios": ["DerivedData", "Pods", "xcuserdata"],     // iOS
+    "web": ["node_modules", "dist", ".next"]          // Web
   },
   "thirdparty_dirs": {
     "container_names": ["vendor", "external", "libs"],
@@ -110,20 +110,16 @@ Edit `config/ignore-patterns.json` to customize patterns:
 }
 ```
 
-## Requirements
+## 系统要求
 
 - Python 3.6+
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (for skill invocation)
-- Git (optional, for activity analysis)
+- 支持自定义技能的 AI Agent（如 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)）
+- Git（可选，用于活跃度分析）
 
-## Acknowledgements
-
-This project is built to work with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) by [Anthropic](https://www.anthropic.com/).
-
-## Star History
+## 星标历史
 
 [![Star History Chart](https://api.star-history.com/svg?repos=haibindev/repo-scan&type=Date)](https://star-history.com/#haibindev/repo-scan&Date)
 
-## License
+## 许可证
 
 [MIT](LICENSE)
