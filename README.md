@@ -7,9 +7,9 @@
 
 **中文** | [English](README_en.md)
 
-> npm 有 audit，pip 有 safety，Go 有 mod tidy——**C++ 有什么？**
+> Agent Skill：架构级跨技术栈源码资产扫描和分析工具。
 >
-> 重构之前，先摸清家底。
+> npm 有 audit，pip 有 safety，Go 有 mod tidy——**C++ 有什么？** 重构之前，先摸清家底。
 
 ![repo-scan banner](images/banner.jpg)
 
