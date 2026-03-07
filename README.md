@@ -7,7 +7,9 @@
 
 **中文** | [English](README_en.md)
 
-> Agent 技能：全面的源码资产审计工具。重构之前，先摸清家底。
+> Agent 技能：全面的源码资产扫描和分析工具。重构之前，先摸清家底。
+
+![repo-scan banner](images/banner.jpg)
 
 ---
 
