@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>源码资产审计报告</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --yellow: #d29922; --red: #f85149; --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+         background: var(--bg); color: var(--text); line-height: 1.6; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  .header { text-align: center; padding: 48px 0 32px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+  .header h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+  .header .meta { color: var(--text-dim); font-size: 14px; }
+  .header .desc { color: var(--text-dim); font-size: 13px; margin-top: 8px; max-width: 800px; margin-left: auto; margin-right: auto; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .stat-card .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .stat-card .value.green { color: var(--green); }
+  .stat-card .value.yellow { color: var(--yellow); }
+  .stat-card .value.accent { color: var(--accent); }
+  .stat-card .value.purple { color: var(--purple); }
+  .stat-card .value.red { color: var(--red); }
+
+  .section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 24px; }
+  .section-header { padding: 16px 20px; border-bottom: 1px solid var(--border); cursor: pointer;
+                     display: flex; justify-content: space-between; align-items: center; user-select: none; }
+  .section-header h2 { font-size: 18px; font-weight: 600; }
+  .section-header .toggle { color: var(--text-dim); font-size: 20px; transition: transform 0.2s; }
+  .section.collapsed .section-body { display: none; }
+  .section.collapsed .toggle { transform: rotate(-90deg); }
+  .section-body { padding: 20px; }
+
+  .tree { font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 13px;
+          white-space: pre; overflow-x: auto; line-height: 1.8; color: var(--text-dim); }
+  .tree .dir { color: var(--accent); font-weight: 500; }
+  .tree .tag-3rd { color: var(--yellow); }
+  .tree .tag-core { color: var(--green); }
+  .tree .tag-dead { color: var(--red); }
+
+  .module-card { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; overflow: hidden; }
+  .module-card:last-child { margin-bottom: 0; }
+  .module-title { padding: 12px 16px; background: rgba(88,166,255,0.08); cursor: pointer;
+                  display: flex; justify-content: space-between; align-items: center; }
+  .module-title h3 { font-size: 15px; font-weight: 600; color: var(--accent); }
+  .module-title .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .badge-core { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge-merge { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .badge-rebuild { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .badge-retire { background: rgba(248,81,73,0.15); color: var(--red); }
+  .module-detail { padding: 16px; display: none; }
+  .module-card.open .module-detail { display: block; }
+  .module-detail table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .module-detail td { padding: 6px 0; vertical-align: top; }
+  .module-detail td:first-child { width: 140px; color: var(--text-dim); font-weight: 500; }
+
+  .triage-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  .triage-table th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border);
+                     color: var(--text-dim); font-weight: 600; font-size: 12px; text-transform: uppercase;
+                     letter-spacing: 0.3px; word-break: break-word; }
+  .triage-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top;
+                     word-break: break-word; overflow-wrap: break-word; }
+  .triage-table tr:hover { background: rgba(88,166,255,0.04); }
+  .triage-table .verdict { font-weight: 600; }
+  .verdict-core { color: var(--green); }
+  .verdict-merge { color: var(--yellow); }
+  .verdict-rebuild { color: var(--purple); }
+  .verdict-retire { color: var(--red); }
+  /* 资产定级表各列宽度 */
+  #triageBody ~ * th:nth-child(1), .triage-table.triage th:nth-child(1) { width: 12%; }
+  .triage-cols th:nth-child(1) { width: 12%; }
+  .triage-cols th:nth-child(2) { width: 18%; }
+  .triage-cols th:nth-child(3) { width: 14%; }
+  .triage-cols th:nth-child(4) { width: 14%; }
+  .triage-cols th:nth-child(5) { width: 12%; }
+  .triage-cols th:nth-child(6) { width: 20%; }
+  .triage-cols th:nth-child(7) { width: 10%; }
+  /* 三方依赖表各列宽度 */
+  .deps-cols th:nth-child(1) { width: 10%; }
+  .deps-cols th:nth-child(2) { width: 14%; }
+  .deps-cols th:nth-child(3) { width: 14%; }
+  .deps-cols th:nth-child(4) { width: 8%; }
+  .deps-cols th:nth-child(5) { width: 12%; }
+  .deps-cols th:nth-child(6) { width: 18%; }
+  .deps-cols th:nth-child(7) { width: 24%; }
+
+  .stack-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+  .stack-bar .seg { display: flex; align-items: center; justify-content: center;
+                    font-size: 11px; font-weight: 600; color: #fff; min-width: 40px; }
+  .seg-cpp { background: #2188ff; }
+  .seg-java { background: #f0883e; }
+  .seg-ios { background: #bc8cff; }
+  .seg-web { background: #3fb950; }
+  .seg-other { background: #484f58; }
+  .stack-legend { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+  .stack-legend span::before { content: ''; display: inline-block; width: 10px; height: 10px;
+                                border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .legend-cpp::before { background: #2188ff; }
+  .legend-java::before { background: #f0883e; }
+  .legend-ios::before { background: #bc8cff; }
+  .legend-web::before { background: #3fb950; }
+  .legend-other::before { background: #484f58; }
+
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-btn { padding: 4px 12px; border-radius: 16px; border: 1px solid var(--border);
+                background: transparent; color: var(--text-dim); cursor: pointer; font-size: 12px; }
+  .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .summary h3 { font-size: 16px; margin-bottom: 12px; color: var(--accent); }
+  .summary ul { padding-left: 20px; margin-bottom: 16px; }
+  .summary li { margin-bottom: 6px; font-size: 13px; }
+  .summary .risk { color: var(--red); }
+  .summary .action { color: var(--green); }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  @media print { body { background: #fff; color: #000; }
+    .section, .stat-card, .module-card { border-color: #ddd; background: #fff; }
+    .section-body, .module-detail { display: block !important; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1 id="reportTitle">源码资产审计报告</h1>
+    <div class="meta">
+      <span id="scanTarget">目标路径: —</span> &nbsp;|&nbsp;
+      <span id="scanDate">扫描日期: —</span>
+    </div>
+    <div class="desc" id="scanDesc"></div>
+  </div>
+  <div class="stats-grid" id="statsGrid"></div>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>技术栈分布</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div class="stack-bar" id="stackBar"></div>
+      <div class="stack-legend">
+        <span class="legend-cpp">C/C++</span>
+        <span class="legend-java">Java/Android</span>
+        <span class="legend-ios">iOS</span>
+        <span class="legend-web">Web/TS</span>
+        <span class="legend-other">Other</span>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>资产总览树</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div class="tree" id="assetTree"></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>模块详情</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div class="filter-bar" id="filterBar">
+        <button class="filter-btn active" onclick="filterModules('all', this)">全部</button>
+        <button class="filter-btn" onclick="filterModules('核心基石', this)">核心基石</button>
+        <button class="filter-btn" onclick="filterModules('提纯合并', this)">提纯合并</button>
+        <button class="filter-btn" onclick="filterModules('重塑提取', this)">重塑提取</button>
+        <button class="filter-btn" onclick="filterModules('彻底淘汰', this)">彻底淘汰</button>
+      </div>
+      <div id="moduleList"></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>资产定级表</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <table class="triage-table triage-cols">
+        <thead><tr>
+          <th>模块/目录</th><th>核心功能</th><th>三方依赖</th>
+          <th>上下游依赖</th><th>活跃度</th><th>质量点评</th><th>判决</th>
+        </tr></thead>
+        <tbody id="triageBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>三方依赖总览</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <table class="triage-table deps-cols">
+        <thead><tr><th>库名</th><th>版本</th><th>位置</th><th>体积</th><th>引用模块</th><th>用途</th><th>评估</th></tr></thead>
+        <tbody id="depsBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>审计总结</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body summary" id="summaryBody"></div>
+  </div>
+</div>
+
+<script>
+// __REPORT_BEGIN__
+const REPORT = {};
+// __REPORT_END__
+
+function init() {
+  document.getElementById('reportTitle').textContent = REPORT.title || '源码资产审计报告';
+  document.getElementById('scanTarget').textContent = '目标路径: ' + (REPORT.target || '—');
+  document.getElementById('scanDate').textContent = '扫描日期: ' + (REPORT.date || '—');
+  if (REPORT.desc) document.getElementById('scanDesc').textContent = REPORT.desc;
+  renderStats(); renderStackBar(); renderTree(); renderModules(); renderTriage(); renderDeps(); renderSummary();
+}
+function renderStats() {
+  document.getElementById('statsGrid').innerHTML = (REPORT.stats||[]).map(s =>
+    '<div class="stat-card"><div class="label">'+s.label+'</div><div class="value '+(s.color||'')+'">'+s.value+'</div></div>').join('');
+}
+function renderStackBar() {
+  var s = REPORT.stack || {};
+  var segs = [{cls:'seg-cpp',val:s.cpp||0,label:'C++'},{cls:'seg-java',val:s.java||0,label:'Java'},
+    {cls:'seg-ios',val:s.ios||0,label:'iOS'},{cls:'seg-web',val:s.web||0,label:'Web'},{cls:'seg-other',val:s.other||0,label:'Other'}].filter(function(x){return x.val>0;});
+  document.getElementById('stackBar').innerHTML = segs.map(function(x){
+    return '<div class="'+x.cls+' seg" style="width:'+x.val+'%">'+(x.val>=5?x.label+' '+x.val+'%':'')+'</div>';}).join('');
+}
+function renderTree() { document.getElementById('assetTree').innerHTML = REPORT.tree || '暂无数据'; }
+function renderModules() {
+  document.getElementById('moduleList').innerHTML = (REPORT.modules||[]).map(function(m){
+    var vc = verdictClass(m.verdict);
+    return '<div class="module-card" data-verdict="'+m.verdict+'"><div class="module-title" onclick="this.parentElement.classList.toggle(\'open\')">'+
+      '<h3>'+m.name+' <span style="color:var(--text-dim);font-weight:400;font-size:13px">'+(m.path||'')+'</span></h3>'+
+      '<span class="badge badge-'+vc+'">'+m.verdict+'</span></div>'+
+      '<div class="module-detail"><table>'+
+      '<tr><td>功能全貌</td><td>'+(m.function||'—')+'</td></tr>'+
+      '<tr><td>核心代码模块</td><td>'+(m.coreClasses||'—')+'</td></tr>'+
+      '<tr><td>模块间依赖</td><td>'+(m.deps||'—')+'</td></tr>'+
+      '<tr><td>三方库引用</td><td>'+(m.thirdParty||'—')+'</td></tr>'+
+      '<tr><td>代码体量</td><td>'+(m.codeSize||'—')+'</td></tr>'+
+      '<tr><td>质量评估</td><td>'+(m.quality||'—')+'</td></tr>'+
+      '<tr><td>活跃度</td><td>'+(m.activity||'—')+'</td></tr>'+
+      '</table></div></div>';}).join('');
+}
+function renderTriage() {
+  document.getElementById('triageBody').innerHTML = (REPORT.triage||[]).map(function(r){
+    return '<tr><td><strong>'+r.module+'</strong></td><td>'+r.function+'</td><td>'+r.thirdParty+'</td>'+
+      '<td>'+r.deps+'</td><td>'+r.activity+'</td><td>'+r.quality+'</td>'+
+      '<td class="verdict verdict-'+verdictClass(r.verdict)+'">'+r.verdict+'</td></tr>';}).join('');
+}
+function renderDeps() {
+  document.getElementById('depsBody').innerHTML = (REPORT.thirdPartyDeps||[]).map(function(d){
+    return '<tr><td><strong>'+d.name+'</strong></td><td>'+d.version+'</td><td style="font-size:12px">'+d.location+'</td>'+
+      '<td>'+d.size+'</td><td>'+d.usedBy+'</td><td>'+d.usage+'</td><td>'+d.assessment+'</td></tr>';}).join('');
+}
+function renderSummary() {
+  var s = REPORT.summary;
+  if (!s) return;
+  var h = '';
+  if (s.profile) { h += '<h3>项目整体画像</h3><ul>'+s.profile.map(function(p){return '<li>'+p+'</li>';}).join('')+'</ul>'; }
+  if (s.risks) { h += '<h3 style="color:var(--red)">关键风险</h3><ul>'+s.risks.map(function(r){return '<li class="risk">'+r+'</li>';}).join('')+'</ul>'; }
+  if (s.actions) { h += '<h3 style="color:var(--green)">优先行动建议</h3><ul>'+s.actions.map(function(a){return '<li class="action">'+a+'</li>';}).join('')+'</ul>'; }
+  document.getElementById('summaryBody').innerHTML = h;
+}
+function verdictClass(v) {
+  if (!v) return 'core';
+  if (v.indexOf('基石')>=0) return 'core';
+  if (v.indexOf('合并')>=0) return 'merge';
+  if (v.indexOf('重塑')>=0) return 'rebuild';
+  if (v.indexOf('淘汰')>=0) return 'retire';
+  return 'core';
+}
+function toggleSection(header) { header.parentElement.classList.toggle('collapsed'); }
+function filterModules(verdict, btn) {
+  document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  document.querySelectorAll('.module-card').forEach(function(card){
+    card.style.display = (verdict==='all'||card.dataset.verdict===verdict) ? '' : 'none';});
+}
+init();
+</script>
+</body>
+</html>

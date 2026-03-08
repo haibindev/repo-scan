@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>源码资产总览</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --yellow: #d29922; --red: #f85149; --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+         background: var(--bg); color: var(--text); line-height: 1.6; }
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+  .header { text-align: center; padding: 48px 0 32px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+  .header h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+  .header .meta { color: var(--text-dim); font-size: 14px; }
+  .header .desc { color: var(--text-dim); font-size: 13px; margin-top: 8px; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .stat-card .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .stat-card .value.green { color: var(--green); }
+  .stat-card .value.yellow { color: var(--yellow); }
+  .stat-card .value.accent { color: var(--accent); }
+  .stat-card .value.purple { color: var(--purple); }
+  .stat-card .value.red { color: var(--red); }
+
+  .section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 24px; }
+  .section-header { padding: 16px 20px; border-bottom: 1px solid var(--border); cursor: pointer;
+                     display: flex; justify-content: space-between; align-items: center; user-select: none; }
+  .section-header h2 { font-size: 18px; font-weight: 600; }
+  .section-header .toggle { color: var(--text-dim); font-size: 20px; transition: transform 0.2s; }
+  .section.collapsed .section-body { display: none; }
+  .section.collapsed .toggle { transform: rotate(-90deg); }
+  .section-body { padding: 20px; }
+
+  /* ── 子项目卡片网格 ── */
+  .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+  .project-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px;
+                  display: block; text-decoration: none; color: inherit;
+                  transition: border-color 0.2s, box-shadow 0.2s; cursor: pointer; }
+  .project-card:hover { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(88,166,255,0.1); }
+  .project-card .proj-name { font-size: 16px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+  .project-card .proj-meta { font-size: 12px; color: var(--text-dim); margin-bottom: 12px; }
+  .project-card .proj-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border);
+         color: var(--text-dim); background: var(--surface); }
+  .tag.cpp { border-color: #2188ff44; color: #2188ff; background: #2188ff11; }
+  .tag.java { border-color: #f0883e44; color: #f0883e; background: #f0883e11; }
+  .tag.ios { border-color: #bc8cff44; color: #bc8cff; background: #bc8cff11; }
+  .tag.web { border-color: #3fb95044; color: #3fb950; background: #3fb95011; }
+  .verdict-bar-wrap { margin-bottom: 8px; }
+  .verdict-bar-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+  .verdict-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; }
+  .vb-core  { background: var(--green); border-radius: 2px; }
+  .vb-merge { background: var(--yellow); border-radius: 2px; }
+  .vb-rebuild { background: var(--purple); border-radius: 2px; }
+  .vb-retire { background: var(--red); border-radius: 2px; }
+  .verdict-legend { display: flex; gap: 12px; font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+  .verdict-legend span { display: flex; align-items: center; gap: 4px; }
+  .verdict-legend .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .open-hint { font-size: 11px; color: var(--accent); margin-top: 12px; opacity: 0.7; }
+
+  /* ── 交叉分析表格 ── */
+  .cross-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; margin-bottom: 24px; }
+  .cross-table th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border);
+                    color: var(--text-dim); font-weight: 600; font-size: 12px;
+                    text-transform: uppercase; letter-spacing: 0.3px; word-break: break-word; }
+  .cross-table td { padding: 10px 12px; border-bottom: 1px solid var(--border);
+                    vertical-align: top; word-break: break-word; overflow-wrap: break-word; }
+  .cross-table tr:hover { background: rgba(88,166,255,0.04); }
+  .cross-table h4 { font-size: 14px; color: var(--accent); margin-bottom: 12px; margin-top: 4px; }
+  .overlap-cols th:nth-child(1) { width: 20%; }
+  .overlap-cols th:nth-child(2) { width: 35%; }
+  .overlap-cols th:nth-child(3) { width: 45%; }
+  .topo-cols th:nth-child(1) { width: 10%; }
+  .topo-cols th:nth-child(2) { width: 20%; }
+  .topo-cols th:nth-child(3) { width: 15%; }
+  .topo-cols th:nth-child(4) { width: 55%; }
+  .revision-cols th:nth-child(1) { width: 18%; }
+  .revision-cols th:nth-child(2) { width: 16%; }
+  .revision-cols th:nth-child(3) { width: 16%; }
+  .revision-cols th:nth-child(4) { width: 50%; }
+  .verdict-core { color: var(--green); font-weight: 600; }
+  .verdict-merge { color: var(--yellow); font-weight: 600; }
+  .verdict-rebuild { color: var(--purple); font-weight: 600; }
+  .verdict-retire { color: var(--red); font-weight: 600; }
+
+  /* ── 行动清单 ── */
+  .action-list { list-style: none; padding: 0; }
+  .action-list li { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; display: flex; gap: 12px; }
+  .action-list li:last-child { border-bottom: none; }
+  .action-num { background: rgba(88,166,255,0.15); color: var(--accent); border-radius: 50%;
+                width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+                font-size: 12px; font-weight: 700; flex-shrink: 0; }
+
+  /* ── 总结 ── */
+  .summary h3 { font-size: 16px; margin-bottom: 12px; color: var(--accent); }
+  .summary ul { padding-left: 20px; margin-bottom: 16px; }
+  .summary li { margin-bottom: 6px; font-size: 13px; }
+  .summary .risk { color: var(--red); }
+  .summary .action { color: var(--green); }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1 id="reportTitle">源码资产总览</h1>
+    <div class="meta">
+      <span id="scanTarget">目标路径: —</span> &nbsp;|&nbsp;
+      <span id="scanDate">扫描日期: —</span>
+    </div>
+    <div class="desc" id="scanDesc"></div>
+  </div>
+
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>子项目一览</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body">
+      <div class="project-grid" id="projectGrid"></div>
+    </div>
+  </div>
+
+  <div class="section" id="crossSection" style="display:none">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>跨模块交叉审阅</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body" id="crossBody"></div>
+  </div>
+
+  <div class="section" id="summarySection" style="display:none">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>审计总结</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body summary" id="summaryBody"></div>
+  </div>
+</div>
+
+<script>
+// __REPORT_BEGIN__
+const REPORT = {};
+// __REPORT_END__
+
+function init() {
+  document.getElementById('reportTitle').textContent = REPORT.title || '源码资产总览';
+  document.getElementById('scanTarget').textContent = '目标路径: ' + (REPORT.target || '—');
+  document.getElementById('scanDate').textContent = '扫描日期: ' + (REPORT.date || '—');
+  if (REPORT.desc) document.getElementById('scanDesc').textContent = REPORT.desc;
+  renderStats();
+  renderProjects();
+  renderCross();
+  renderSummary();
+}
+
+function renderStats() {
+  var projects = REPORT.subprojects || [];
+  var totalFiles = 0, totalCore = 0, totalMerge = 0, totalRebuild = 0, totalRetire = 0;
+  projects.forEach(function(p) {
+    totalFiles += parseInt(p.files) || 0;
+    var v = p.verdicts || {};
+    totalCore    += v['核心基石'] || 0;
+    totalMerge   += v['提纯合并'] || 0;
+    totalRebuild += v['重塑提取'] || 0;
+    totalRetire  += v['彻底淘汰'] || 0;
+  });
+  var stats = [
+    { label: '子项目数', value: projects.length, color: 'accent' },
+    { label: '总源码文件', value: totalFiles || '—', color: 'green' },
+    { label: '核心基石', value: totalCore, color: 'green' },
+    { label: '提纯合并', value: totalMerge, color: 'yellow' },
+    { label: '重塑提取', value: totalRebuild, color: 'purple' },
+    { label: '彻底淘汰', value: totalRetire, color: 'red' },
+  ];
+  document.getElementById('statsGrid').innerHTML = stats.map(function(s) {
+    return '<div class="stat-card"><div class="label">'+s.label+'</div><div class="value '+s.color+'">'+s.value+'</div></div>';
+  }).join('');
+}
+
+function renderProjects() {
+  var projects = REPORT.subprojects || [];
+  document.getElementById('projectGrid').innerHTML = projects.map(function(p) {
+    var v = p.verdicts || {};
+    var total = (v['核心基石']||0) + (v['提纯合并']||0) + (v['重塑提取']||0) + (v['彻底淘汰']||0);
+    function pct(n) { return total > 0 ? (n/total*100).toFixed(0) : 0; }
+
+    var barHtml = total > 0 ? [
+      {cls:'vb-core',  n:v['核心基石']||0},
+      {cls:'vb-merge', n:v['提纯合并']||0},
+      {cls:'vb-rebuild',n:v['重塑提取']||0},
+      {cls:'vb-retire', n:v['彻底淘汰']||0},
+    ].filter(function(x){return x.n>0;}).map(function(x){
+      return '<div class="'+x.cls+'" style="flex:'+x.n+'"></div>';
+    }).join('') : '';
+
+    var legendHtml = [
+      {cls:'vb-core',  label:'核心基石', n:v['核心基石']||0},
+      {cls:'vb-merge', label:'提纯合并', n:v['提纯合并']||0},
+      {cls:'vb-rebuild',label:'重塑提取',n:v['重塑提取']||0},
+      {cls:'vb-retire', label:'彻底淘汰',n:v['彻底淘汰']||0},
+    ].filter(function(x){return x.n>0;}).map(function(x){
+      return '<span><span class="dot" style="background:'+dotColor(x.cls)+'"></span>'+x.label+' '+x.n+'</span>';
+    }).join('');
+
+    var stackTags = (p.stack||'').split(/[,\/、]/).map(function(s){ s=s.trim();
+      var cls = s.indexOf('C')===0?'cpp': s.indexOf('Java')>=0||s.indexOf('Android')>=0?'java':
+                s.indexOf('iOS')>=0||s.indexOf('OC')>=0||s.indexOf('Swift')>=0?'ios':
+                s.indexOf('Web')>=0||s.indexOf('TS')>=0||s.indexOf('JS')>=0?'web':'';
+      return s ? '<span class="tag '+cls+'">'+s+'</span>' : '';
+    }).join('');
+
+    var href = p.htmlFile || '';
+    var hasLink = href.length > 0;
+    return (hasLink ? '<a class="project-card" href="'+href+'">' : '<div class="project-card">') +
+      '<div class="proj-name">'+p.name+'</div>'+
+      '<div class="proj-meta">'+(p.buildSystem||'')+(p.files?' &nbsp;·&nbsp; '+p.files+' 文件':'')+(p.size?' &nbsp;·&nbsp; '+p.size:'')+'</div>'+
+      (stackTags ? '<div class="proj-tags">'+stackTags+'</div>' : '')+
+      (total > 0 ? '<div class="verdict-bar-wrap"><div class="verdict-bar-label">模块判决分布</div>'+
+        '<div class="verdict-bar">'+barHtml+'</div>'+
+        '<div class="verdict-legend">'+legendHtml+'</div></div>' : '')+
+      (hasLink ? '<div class="open-hint">点击查看详细报告 →</div>' : '')+
+      (hasLink ? '</a>' : '</div>');
+  }).join('');
+}
+
+function dotColor(cls) {
+  return {'vb-core':'#3fb950','vb-merge':'#d29922','vb-rebuild':'#bc8cff','vb-retire':'#f85149'}[cls] || '#8b949e';
+}
+
+function renderCross() {
+  var overlaps  = REPORT.overlaps  || [];
+  var topology  = REPORT.topology  || [];
+  var revisions = REPORT.revisions || [];
+  var actions   = REPORT.actions   || [];
+
+  if (!overlaps.length && !topology.length && !revisions.length && !actions.length) return;
+  document.getElementById('crossSection').style.display = '';
+
+  var h = '';
+
+  if (overlaps.length) {
+    h += '<h4>能力重叠地图</h4>';
+    h += '<table class="cross-table overlap-cols"><thead><tr><th>能力域</th><th>重复模块</th><th>建议合并路径</th></tr></thead><tbody>';
+    h += overlaps.map(function(o){
+      return '<tr><td><strong>'+o.capability+'</strong></td><td><code>'+o.modules+'</code></td><td>'+o.suggestion+'</td></tr>';
+    }).join('');
+    h += '</tbody></table>';
+  }
+
+  if (topology.length) {
+    h += '<h4>依赖拓扑</h4>';
+    h += '<table class="cross-table topo-cols"><thead><tr><th>层级</th><th>模块</th><th>被依赖次数</th><th>说明</th></tr></thead><tbody>';
+    h += topology.map(function(t){
+      return '<tr><td><strong>'+t.level+'</strong></td><td><code>'+t.module+'</code></td><td>'+t.dependents+'</td><td>'+t.note+'</td></tr>';
+    }).join('');
+    h += '</tbody></table>';
+  }
+
+  if (revisions.length) {
+    h += '<h4>修正判决</h4>';
+    h += '<table class="cross-table revision-cols"><thead><tr><th>模块</th><th>原判决</th><th>修正为</th><th>理由</th></tr></thead><tbody>';
+    h += revisions.map(function(r){
+      return '<tr><td><strong>'+r.module+'</strong></td>'+
+        '<td class="verdict-'+verdictClass(r.original)+'">'+r.original+'</td>'+
+        '<td class="verdict-'+verdictClass(r.revised)+'">'+r.revised+'</td>'+
+        '<td>'+r.reason+'</td></tr>';
+    }).join('');
+    h += '</tbody></table>';
+  }
+
+  if (actions.length) {
+    h += '<h4>重构行动优先级</h4><ol class="action-list">';
+    h += actions.map(function(a, i){
+      return '<li><span class="action-num">'+(i+1)+'</span><span>'+a+'</span></li>';
+    }).join('');
+    h += '</ol>';
+  }
+
+  document.getElementById('crossBody').innerHTML = h;
+}
+
+function renderSummary() {
+  var s = REPORT.summary;
+  if (!s || (!s.profile && !s.risks && !s.actions)) return;
+  document.getElementById('summarySection').style.display = '';
+  var h = '';
+  if (s.profile) { h += '<h3>整体画像</h3><ul>'+s.profile.map(function(p){return '<li>'+p+'</li>';}).join('')+'</ul>'; }
+  if (s.risks)   { h += '<h3 style="color:var(--red)">关键风险</h3><ul>'+s.risks.map(function(r){return '<li class="risk">'+r+'</li>';}).join('')+'</ul>'; }
+  if (s.actions) { h += '<h3 style="color:var(--green)">优先行动建议</h3><ul>'+s.actions.map(function(a){return '<li class="action">'+a+'</li>';}).join('')+'</ul>'; }
+  document.getElementById('summaryBody').innerHTML = h;
+}
+
+function verdictClass(v) {
+  if (!v) return 'core';
+  if (v.indexOf('基石')>=0) return 'core';
+  if (v.indexOf('合并')>=0) return 'merge';
+  if (v.indexOf('重塑')>=0) return 'rebuild';
+  if (v.indexOf('淘汰')>=0) return 'retire';
+  return 'core';
+}
+function toggleSection(header) { header.parentElement.classList.toggle('collapsed'); }
+
+init();
+</script>
+</body>
+</html>
