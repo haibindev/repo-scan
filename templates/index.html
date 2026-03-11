@@ -78,6 +78,10 @@
   .overlap-cols th:nth-child(1) { width: 20%; }
   .overlap-cols th:nth-child(2) { width: 35%; }
   .overlap-cols th:nth-child(3) { width: 45%; }
+  .overlap-cols-4 th:nth-child(1) { width: 18%; }
+  .overlap-cols-4 th:nth-child(2) { width: 37%; }
+  .overlap-cols-4 th:nth-child(3) { width: 10%; }
+  .overlap-cols-4 th:nth-child(4) { width: 35%; }
   .topo-cols th:nth-child(1) { width: 10%; }
   .topo-cols th:nth-child(2) { width: 20%; }
   .topo-cols th:nth-child(3) { width: 15%; }
@@ -98,6 +102,19 @@
   .action-num { background: rgba(88,166,255,0.15); color: var(--accent); border-radius: 50%;
                 width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
                 font-size: 12px; font-weight: 700; flex-shrink: 0; }
+
+  /* ── Deep 分析章节 ── */
+  .deep-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700;
+                background: linear-gradient(135deg, rgba(188,140,255,0.2), rgba(88,166,255,0.2));
+                border: 1px solid var(--purple); color: var(--purple); letter-spacing: 1px; margin-right: 8px; }
+  .deep-subsection { margin-bottom: 20px; }
+  .deep-subsection h4 { font-size: 14px; color: var(--accent); margin-bottom: 10px; padding-bottom: 6px;
+                         border-bottom: 1px solid var(--border); }
+  .deep-subsection ul { padding-left: 20px; margin: 0; }
+  .deep-subsection li { margin-bottom: 6px; font-size: 13px; line-height: 1.6; }
+  .deep-files { font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; font-size: 12px; }
+  .deep-files li { color: var(--text-dim); margin-bottom: 4px; }
+  .deep-files code { color: var(--accent); }
 
   /* ── 总结 ── */
   .summary h3 { font-size: 16px; margin-bottom: 12px; color: var(--accent); }
@@ -133,6 +150,34 @@
     </div>
   </div>
 
+  <div class="section" id="treeSection" style="display:none">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>资产总览树</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body"><pre id="assetTree" style="font-size:13px;line-height:1.5;overflow-x:auto;white-space:pre;color:var(--text-dim)"></pre></div>
+  </div>
+
+  <div class="section" id="modulesSection" style="display:none">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>模块级描述</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body" id="modulesBody"></div>
+  </div>
+
+  <div class="section" id="triageSection" style="display:none">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>资产定级表</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body"><div style="overflow-x:auto"><table class="cross-table" id="triageTable"></table></div></div>
+  </div>
+
+  <div class="section" id="deepSection" style="display:none">
+    <div class="section-header" onclick="toggleSection(this)" style="border-left: 3px solid var(--purple);">
+      <h2><span style="background:linear-gradient(135deg,var(--purple),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DEEP</span> 深度分析</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body" id="deepBody"></div>
+  </div>
+
   <div class="section" id="crossSection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)">
       <h2>跨模块交叉审阅</h2><span class="toggle">&#9660;</span>
@@ -154,12 +199,17 @@ const REPORT = {};
 // __REPORT_END__
 
 function init() {
-  document.getElementById('reportTitle').textContent = REPORT.title || '源码资产总览';
+  document.getElementById('reportTitle').innerHTML = (REPORT.title || '源码资产总览') +
+    (REPORT.hasDeep ? ' <span class="deep-badge" style="font-size:13px;vertical-align:middle">DEEP</span>' : '');
   document.getElementById('scanTarget').textContent = '目标路径: ' + (REPORT.target || '—');
   document.getElementById('scanDate').textContent = '扫描日期: ' + (REPORT.date || '—');
   if (REPORT.desc) document.getElementById('scanDesc').textContent = REPORT.desc;
   renderStats();
   renderProjects();
+  renderTree();
+  renderModules();
+  renderTriage();
+  renderDeep();
   renderCross();
   renderSummary();
 }
@@ -222,8 +272,9 @@ function renderProjects() {
 
     var href = p.htmlFile || '';
     var hasLink = href.length > 0;
+    var deepTag = p.hasDeep ? ' <span class="deep-badge" style="font-size:10px;vertical-align:middle">DEEP' + (p.deepCount > 1 ? ' ×' + p.deepCount : '') + '</span>' : '';
     return (hasLink ? '<a class="project-card" href="'+href+'">' : '<div class="project-card">') +
-      '<div class="proj-name">'+p.name+'</div>'+
+      '<div class="proj-name">'+p.name+deepTag+'</div>'+
       '<div class="proj-meta">'+(p.buildSystem||'')+(p.files?' &nbsp;·&nbsp; '+p.files+' 文件':'')+(p.size?' &nbsp;·&nbsp; '+p.size:'')+'</div>'+
       (stackTags ? '<div class="proj-tags">'+stackTags+'</div>' : '')+
       (total > 0 ? '<div class="verdict-bar-wrap"><div class="verdict-bar-label">模块判决分布</div>'+
@@ -234,8 +285,77 @@ function renderProjects() {
   }).join('');
 }
 
+function renderTree() {
+  var tree = REPORT.tree || '';
+  if (!tree) return;
+  document.getElementById('treeSection').style.display = '';
+  document.getElementById('assetTree').innerHTML = tree;
+}
+
+function renderModules() {
+  var modules = REPORT.modules || [];
+  if (!modules.length) return;
+  document.getElementById('modulesSection').style.display = '';
+  var h = '';
+  modules.forEach(function(m, i) {
+    var vc = verdictClass(m.verdict);
+    h += '<div style="border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;background:var(--bg)">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+    h += '<strong style="font-size:15px">' + m.name + '</strong>';
+    if (m.verdict) h += '<span class="verdict-'+vc+'" style="font-size:13px">'+m.verdict+'</span>';
+    h += '</div>';
+    if (m.path) h += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">📂 '+m.path+'</div>';
+    if (m.function) h += '<div style="font-size:13px;margin-bottom:6px">'+m.function+'</div>';
+    if (m.coreClasses) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">核心类: </span>'+m.coreClasses+'</div>';
+    if (m.deps) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">依赖: </span>'+m.deps+'</div>';
+    if (m.thirdParty) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">三方库: </span>'+m.thirdParty+'</div>';
+    if (m.codeSize) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">体量: </span>'+m.codeSize+'</div>';
+    if (m.quality) h += '<div style="font-size:12px;margin-bottom:4px">'+m.quality+'</div>';
+    h += '</div>';
+  });
+  document.getElementById('modulesBody').innerHTML = h;
+}
+
+function renderTriage() {
+  var triage = REPORT.triage || [];
+  if (!triage.length) return;
+  document.getElementById('triageSection').style.display = '';
+  var h = '<thead><tr><th>模块/目录</th><th>核心功能</th><th>三方依赖</th><th>上下游依赖</th><th>活跃度</th><th>质量点评</th><th>判决</th></tr></thead><tbody>';
+  triage.forEach(function(t) {
+    var vc = verdictClass(t.verdict);
+    h += '<tr><td><strong>'+t.module+'</strong></td><td>'+t.function+'</td><td>'+t.thirdParty+'</td><td>'+t.deps+'</td><td>'+t.activity+'</td><td>'+t.quality+'</td><td class="verdict-'+vc+'">'+t.verdict+'</td></tr>';
+  });
+  h += '</tbody>';
+  document.getElementById('triageTable').innerHTML = h;
+}
+
 function dotColor(cls) {
   return {'vb-core':'#3fb950','vb-merge':'#d29922','vb-rebuild':'#bc8cff','vb-retire':'#f85149'}[cls] || '#8b949e';
+}
+
+function renderDeep() {
+  var d = REPORT.deep;
+  if (!d) return;
+  document.getElementById('deepSection').style.display = '';
+  var h = '';
+  var sections = [
+    {key:'files', title:'精读文件清单', cls:'deep-files'},
+    {key:'threadSafety', title:'线程安全评估', cls:''},
+    {key:'memory', title:'内存管理评估', cls:''},
+    {key:'errorHandling', title:'错误处理评估', cls:''},
+    {key:'apiConsistency', title:'API 设计一致性', cls:''},
+    {key:'extraFindings', title:'Deep 级补充发现', cls:''},
+  ];
+  sections.forEach(function(sec) {
+    var items = d[sec.key];
+    if (!items || !items.length) return;
+    h += '<div class="deep-subsection">';
+    h += '<h4><span class="deep-badge">DEEP</span>' + sec.title + '</h4>';
+    h += '<ul class="' + (sec.cls||'') + '">';
+    items.forEach(function(item) { h += '<li>' + item + '</li>'; });
+    h += '</ul></div>';
+  });
+  document.getElementById('deepBody').innerHTML = h;
 }
 
 function renderCross() {
@@ -250,11 +370,19 @@ function renderCross() {
   var h = '';
 
   if (overlaps.length) {
+    var hasCount = overlaps[0].count !== undefined;
     h += '<h4>能力重叠地图</h4>';
-    h += '<table class="cross-table overlap-cols"><thead><tr><th>能力域</th><th>重复模块</th><th>建议合并路径</th></tr></thead><tbody>';
-    h += overlaps.map(function(o){
-      return '<tr><td><strong>'+o.capability+'</strong></td><td><code>'+o.modules+'</code></td><td>'+o.suggestion+'</td></tr>';
-    }).join('');
+    if (hasCount) {
+      h += '<table class="cross-table overlap-cols-4"><thead><tr><th>能力域</th><th>重复模块</th><th>重复次数</th><th>建议合并路径</th></tr></thead><tbody>';
+      h += overlaps.map(function(o){
+        return '<tr><td><strong>'+o.capability+'</strong></td><td>'+o.modules+'</td><td style="color:var(--red);font-weight:600">'+o.count+'</td><td>'+o.suggestion+'</td></tr>';
+      }).join('');
+    } else {
+      h += '<table class="cross-table overlap-cols"><thead><tr><th>能力域</th><th>重复模块</th><th>建议合并路径</th></tr></thead><tbody>';
+      h += overlaps.map(function(o){
+        return '<tr><td><strong>'+o.capability+'</strong></td><td><code>'+o.modules+'</code></td><td>'+o.suggestion+'</td></tr>';
+      }).join('');
+    }
     h += '</tbody></table>';
   }
 
@@ -285,6 +413,17 @@ function renderCross() {
       return '<li><span class="action-num">'+(i+1)+'</span><span>'+a+'</span></li>';
     }).join('');
     h += '</ol>';
+  }
+
+  var risks = REPORT.risks || [];
+  if (risks.length) {
+    h += '<h4>全局关键风险</h4>';
+    h += '<table class="cross-table revision-cols"><thead><tr><th>风险</th><th>严重度</th><th>涉及范围</th><th>建议</th></tr></thead><tbody>';
+    h += risks.map(function(r){
+      var sevColor = r.severity.indexOf('严重')>=0?'var(--red)':r.severity.indexOf('高')>=0?'var(--red)':r.severity.indexOf('中')>=0?'var(--yellow)':'var(--text-dim)';
+      return '<tr><td>'+r.risk+'</td><td style="color:'+sevColor+';font-weight:600">'+r.severity+'</td><td>'+r.scope+'</td><td>'+r.suggestion+'</td></tr>';
+    }).join('');
+    h += '</tbody></table>';
   }
 
   document.getElementById('crossBody').innerHTML = h;

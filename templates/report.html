@@ -120,6 +120,19 @@
   .summary .risk { color: var(--red); }
   .summary .action { color: var(--green); }
 
+  /* ── Deep 分析章节 ── */
+  .deep-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700;
+                background: linear-gradient(135deg, rgba(188,140,255,0.2), rgba(88,166,255,0.2));
+                border: 1px solid var(--purple); color: var(--purple); letter-spacing: 1px; margin-right: 8px; }
+  .deep-subsection { margin-bottom: 20px; }
+  .deep-subsection h4 { font-size: 14px; color: var(--accent); margin-bottom: 10px; padding-bottom: 6px;
+                         border-bottom: 1px solid var(--border); }
+  .deep-subsection ul { padding-left: 20px; margin: 0; }
+  .deep-subsection li { margin-bottom: 6px; font-size: 13px; line-height: 1.6; }
+  .deep-files { font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace; font-size: 12px; }
+  .deep-files li { color: var(--text-dim); margin-bottom: 4px; }
+  .deep-files code { color: var(--accent); }
+
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -203,6 +216,12 @@
       </table>
     </div>
   </div>
+  <div class="section" id="deepSection" style="display:none">
+    <div class="section-header" onclick="toggleSection(this)" style="border-left: 3px solid var(--purple);">
+      <h2><span style="background:linear-gradient(135deg,var(--purple),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DEEP</span> 深度分析</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body" id="deepBody"></div>
+  </div>
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
       <h2>审计总结</h2><span class="toggle">&#9660;</span>
@@ -217,11 +236,12 @@ const REPORT = {};
 // __REPORT_END__
 
 function init() {
-  document.getElementById('reportTitle').textContent = REPORT.title || '源码资产审计报告';
+  document.getElementById('reportTitle').innerHTML = (REPORT.title || '源码资产审计报告') +
+    (REPORT.hasDeep ? ' <span class="deep-badge" style="font-size:13px;vertical-align:middle">DEEP</span>' : '');
   document.getElementById('scanTarget').textContent = '目标路径: ' + (REPORT.target || '—');
   document.getElementById('scanDate').textContent = '扫描日期: ' + (REPORT.date || '—');
   if (REPORT.desc) document.getElementById('scanDesc').textContent = REPORT.desc;
-  renderStats(); renderStackBar(); renderTree(); renderModules(); renderTriage(); renderDeps(); renderSummary();
+  renderStats(); renderStackBar(); renderTree(); renderModules(); renderTriage(); renderDeps(); renderDeep(); renderSummary();
 }
 function renderStats() {
   document.getElementById('statsGrid').innerHTML = (REPORT.stats||[]).map(s =>
@@ -261,6 +281,30 @@ function renderDeps() {
   document.getElementById('depsBody').innerHTML = (REPORT.thirdPartyDeps||[]).map(function(d){
     return '<tr><td><strong>'+d.name+'</strong></td><td>'+d.version+'</td><td style="font-size:12px">'+d.location+'</td>'+
       '<td>'+d.size+'</td><td>'+d.usedBy+'</td><td>'+d.usage+'</td><td>'+d.assessment+'</td></tr>';}).join('');
+}
+function renderDeep() {
+  var d = REPORT.deep;
+  if (!d) return;
+  document.getElementById('deepSection').style.display = '';
+  var h = '';
+  var sections = [
+    {key:'files', title:'精读文件清单', cls:'deep-files'},
+    {key:'threadSafety', title:'线程安全评估', cls:''},
+    {key:'memory', title:'内存管理评估', cls:''},
+    {key:'errorHandling', title:'错误处理评估', cls:''},
+    {key:'apiConsistency', title:'API 设计一致性', cls:''},
+    {key:'extraFindings', title:'Deep 级补充发现', cls:''},
+  ];
+  sections.forEach(function(sec) {
+    var items = d[sec.key];
+    if (!items || !items.length) return;
+    h += '<div class="deep-subsection">';
+    h += '<h4><span class="deep-badge">DEEP</span>' + sec.title + '</h4>';
+    h += '<ul class="' + (sec.cls||'') + '">';
+    items.forEach(function(item) { h += '<li>' + item + '</li>'; });
+    h += '</ul></div>';
+  });
+  document.getElementById('deepBody').innerHTML = h;
 }
 function renderSummary() {
   var s = REPORT.summary;

@@ -1,7 +1,7 @@
 ---
 name: repo-scan
 description: 对指定项目源码目录执行全面资产审计，生成《全网模块与源码资产审计详细清单》。当用户要求"审计源码"、"盘点代码资产"、"生成清单"时自动触发。
-argument-hint: <目标源码目录路径>
+argument-hint: <目标源码目录路径> [--level fast|standard|deep] [--modules mod1,mod2,...]
 allowed-tools: Bash, Read, Glob, Grep, Write, Edit
 ---
 
@@ -70,28 +70,146 @@ python "${CLAUDE_SKILL_DIR}/scripts/pre-scan.py" "$ARGUMENTS" -o "$ARGUMENTS/rep
 
 ## 高效分析策略（Token 节约铁律）
 
-**严禁穷举式逐文件阅读**——这是对 token 的极大浪费。必须遵循以下分层分析法：
+**严禁穷举式逐文件阅读**——这是对 token 的极大浪费。必须遵循以下分层分析法。
 
-### 第一层：文件名推断（零 Token 成本）
+### 分析精度级别（--level 参数）
+
+用户可通过 `--level` 参数控制精读密度，不指定时默认 `standard`。
+
+| 级别 | 第二层精读文件数（每模块） | 第三层质量抽样 | 适用场景 |
+|---|---|---|---|
+| `fast` | **1-2 个**：仅构建配置 + 最核心的 1 个头文件/接口 | 仅从构建配置推断依赖版本，不做代码级质量判断 | 超大目录（数百模块）快速摸底，先出全景再定点深钻 |
+| `standard` | **2-5 个**：头文件/接口 + 入口文件 + 构建配置 | 完整抽样：依赖引用 + 架构模式 + 技术债标记 | 常规审计（默认） |
+| `deep` | **5-10 个**：在 standard 基础上增加核心业务实现文件、测试文件、CI 配置 | 深度抽样：额外检查错误处理模式、线程安全、内存管理、API 设计一致性 | 增量深度审计（见下方说明） |
+
+**参数解析规则**：
+- 从 `$ARGUMENTS` 中提取 `--level` 和 `--modules` 值，剩余部分作为目标路径
+- 示例：`/repo-scan D:\projects --level fast` → 路径 `D:\projects`，精度 `fast`
+- 示例：`/repo-scan D:\projects --level deep` → 增量 deep（自动筛选高价值模块）
+- 示例：`/repo-scan D:\projects --level deep --modules base,rtmp_encoder_sdk` → 指定模块 deep
+- 未指定 `--level` 时等同于 `--level standard`
+
+### deep 级别：增量模式（核心机制）
+
+**deep 不是独立的全量扫描，而是在已有 standard/fast 数据基础上的增量深度分析。**
+
+#### 执行流程
+
+```
+--level deep 触发后：
+│
+├─ Step D0：检测已有数据
+│   ├─ scan-output 目录存在且有 .md 文件？
+│   │   ├─ 是 → 进入增量模式（Step D1）
+│   │   └─ 否 → 先以 standard 级别执行完整扫描，完成后自动进入 Step D1
+│   │
+├─ Step D1：筛选 deep 目标模块
+│   ├─ 用户指定了 --modules？
+│   │   ├─ 是 → 使用用户指定的模块列表
+│   │   └─ 否 → 自动筛选（见下方规则）
+│   │
+├─ Step D2：对每个目标模块执行 deep 精读（5-10 个文件）
+│   ├─ 读取已有 .md 了解 standard 分析结果（避免重复工作）
+│   ├─ 精读核心实现文件、测试文件、CI 配置
+│   └─ 执行深度质量抽样（线程安全/内存/错误处理/API一致性）
+│
+├─ Step D3：将 deep 分析追加到已有 .md 文件末尾
+│
+└─ Step D4：重新生成受影响的 HTML（gen_html.py 自动识别 deep 章节）
+```
+
+#### 自动筛选规则（无 --modules 时）
+
+从已有 standard 数据中，按以下优先级选取模块：
+
+1. **判决为"核心基石"的模块** — 全部入选（这些是底层基石，deep 分析价值最高）
+2. **判决为"提纯合并"的模块** — 全部入选（即将整合，需要精确了解内部质量）
+3. **判决为"重塑提取"且代码体量前 30% 的模块** — 体量大的重塑模块值得深入
+4. **"彻底淘汰"模块** — 不入选（无 deep 分析价值）
+
+**数量上限**：单次 deep 分析不超过 **20 个模块**。超出时按上述优先级截断，并告知用户可用 `--modules` 指定其余模块。
+
+#### deep 分析输出格式（追加到已有 .md 末尾）
+
+```markdown
+## Deep 级深度分析
+
+### 精读文件清单
+1. `path/to/file.cpp` — 简述为什么选这个文件
+2. `path/to/file.h` — ...
+（5-10 个文件）
+
+### 线程安全评估
+- **锁策略**: ...
+- **竞态风险**: ...
+- **异步模式**: ...
+
+### 内存管理评估
+- **智能指针使用**: ...
+- **裸指针残留**: ...
+- **泄漏风险**: ...
+
+### 错误处理评估
+- **异常/错误码一致性**: ...
+- **静默吞异常**: ...
+
+### API 设计一致性
+- **命名规范**: ...
+- **参数风格**: ...
+- **返回值约定**: ...
+
+### Deep 级补充发现
+1. （standard 级未发现的重要问题）
+2. ...
+```
+
+#### 并行执行策略
+
+对于多个 deep 目标模块，使用 Agent 工具并行处理：
+- 按关联度分组（如同一子项目下的模块分到一组）
+- 每组 3-5 个模块，启动一个 Agent
+- 最多同时 3-4 个 Agent 并行
+- 每个 Agent 独立读取源码、独立写入对应 .md 文件
+
+---
+
+### 第一层：文件名推断（零 Token 成本，所有级别均执行）
 
 根据预扫描的目录树和文件名列表，利用你的架构师经验推断：
 - 模块的功能定位（如 `capture_rtsp/` → RTSP 流抓取模块）
 - 代码组织模式（如 `base/`, `base_codec/` → 基础库层）
 - 技术栈归属（如 `.vcxproj` → MSVC 构建，`build.gradle` → Android）
 
-### 第二层：关键文件精读（每模块仅 2-5 个文件）
+### 第二层：关键文件精读（文件数量受 level 控制）
 
-只阅读以下类型的文件，每个模块最多选 2-5 个：
-- **头文件/接口定义**：`.h`/`.hpp`（C/C++）、`interface`/`abstract class`（Java）、`Protocol`（iOS）、`index.ts`/`types.ts`（Web）
-- **入口/主文件**：`main.cpp`、`Application.java`、`AppDelegate.m`、`App.vue`
-- **构建配置**：`CMakeLists.txt`、`build.gradle`、`Podfile`、`package.json`（从中获取依赖列表和版本信息）
+按当前 level 选择精读文件，优先级从高到低：
 
-### 第三层：质量抽样判断
+1. **构建配置**（所有级别必读）：`CMakeLists.txt`、`build.gradle`、`Podfile`、`package.json`
+2. **头文件/接口定义**（standard 及以上）：`.h`/`.hpp`（C/C++）、`interface`/`abstract class`（Java）、`Protocol`（iOS）、`index.ts`/`types.ts`（Web）
+3. **入口/主文件**（standard 及以上）：`main.cpp`、`Application.java`、`AppDelegate.m`、`App.vue`
+4. **核心业务实现**（deep 增量阶段）：关键 `.cpp`/`.java`/`.swift`/`.ts` 实现文件
+5. **测试与 CI**（deep 增量阶段）：测试入口文件、`.github/workflows/`、`Jenkinsfile` 等
 
-从关键代码文件中判断代码质量：
+> **fast 级别特别说明**：每模块只读 1-2 个文件，但判决仍需给出——依据文件名推断 + 构建配置中的依赖信息做出最佳判断，判决旁标注 `(fast-scan)` 表示精度有限。
+
+> **deep 级别特别说明**：deep 是增量阶段，此时 standard 分析已完成。第 4、5 优先级的文件选择应参考已有 standard 分析结果，有针对性地选择最值得深入的实现文件，而非盲目按文件大小排序。
+
+### 第三层：质量抽样判断（深度受 level 控制）
+
+**fast 级别**：
+- 仅从构建配置中的依赖声明推断三方库版本是否过时
+- 跳过代码级架构和技术债分析，质量评估栏标注"未深入抽样"
+
+**standard 级别**（默认）：
 - **依赖引用**：`#include`/`import`/`require` 中实际使用了哪些三方库？版本是否过时？
 - **架构模式**：是否存在 God Object / 巨型函数 / 硬编码 / 全局状态滥用？
 - **技术债标记**：MFC 残留？Support Library 而非 AndroidX？UIWebView？jQuery？
+
+**deep 级别**（增量阶段，以下检查追加到已有 standard 分析之后）：
+- **错误处理**：异常/错误码是否一致？是否存在静默吞异常？
+- **线程安全**：锁粒度、竞态条件风险、异步模式是否合理？
+- **内存管理**：C/C++ 的 RAII 使用情况、智能指针 vs 裸指针；移动端的循环引用风险
+- **API 设计一致性**：命名规范、参数风格、返回值约定是否统一？
 
 ### 三方库处理原则
 
@@ -249,9 +367,28 @@ python "${CLAUDE_SKILL_DIR}/scripts/gen_html.py" "$ARGUMENTS/scan-output/index.m
 
 脚本会自动：
 1. 解析 markdown 中的头部元数据、资产总览树、模块级描述、资产定级表、三方依赖表、审计总结
-2. 注入到 `${CLAUDE_SKILL_DIR}/templates/report.html` 模板的 `REPORT` 数据对象
-3. 输出自包含 HTML 到报告同目录下 `report.html`
-4. `--open` 参数自动用系统浏览器打开
+2. 自动识别 `## Deep 级深度分析` 章节并提取（线程安全/内存/错误处理/API/补充发现）
+3. 注入到 `${CLAUDE_SKILL_DIR}/templates/report.html` 模板的 `REPORT` 数据对象
+4. 输出自包含 HTML 到报告同目录下 `report.html`
+5. `--open` 参数自动用系统浏览器打开
+
+**deep 增量模式的 HTML 重新生成**：
+
+deep 分析完成后，只需重新生成受影响模块的 HTML + 其父级 index.html：
+```bash
+# 重新生成被 deep 分析的模块页面
+python "${CLAUDE_SKILL_DIR}/scripts/gen_html.py" "scan-output/live_service/hbs_28181_streaming/index.md"
+# 重新生成父级 index（更新 DEEP 徽章和 verdict 数据）
+python "${CLAUDE_SKILL_DIR}/scripts/gen_html.py" "scan-output/live_service/index.md"
+# 重新生成顶级 index
+python "${CLAUDE_SKILL_DIR}/scripts/gen_html.py" "scan-output/index.md" --open
+```
+
+HTML 模板的 deep 相关特性：
+- **页面标题徽章**：含 deep 分析的页面标题显示紫色 `DEEP` 徽章
+- **项目卡片徽章**：子项目列表中，有 deep 分析的项目名称后显示 `DEEP ×N`（N 为 deep 模块数）
+- **独立 DEEP 章节**：紫色左边框 + 渐变标题，与 standard 内容明确区分
+- **verdict 聚合**：子目录 index 页面自动从子模块 .md 中聚合判决分布数据
 
 ### markdown 报告格式要求（供脚本解析）
 

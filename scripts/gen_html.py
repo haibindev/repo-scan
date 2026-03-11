@@ -271,6 +271,48 @@ def parse_md_table(text, section_header):
 
     return headers, rows
 
+def parse_deep_analysis(text):
+    """解析 Deep 级深度分析章节，返回 dict 或 None"""
+    m = re.search(r'## Deep 级深度分析\s*\n(.*?)(?:\n## (?!#)|\Z)', text, re.DOTALL)
+    if not m:
+        return None
+    section = m.group(1)
+    deep = {}
+
+    # 精读文件清单
+    files_m = re.search(r'### 精读文件清单\s*\n((?:(?:\d+\.\s*|[-*]\s*).+\n?)+)', section)
+    if files_m:
+        deep['files'] = [re.sub(r'^[\d.]+\s*|^[-*]\s*', '', l.strip()) for l in files_m.group(1).strip().split('\n') if l.strip()]
+
+    # 各评估子章节
+    for key, zh in [('threadSafety', '线程安全评估'), ('memory', '内存管理评估'),
+                     ('errorHandling', '错误处理评估'), ('apiConsistency', 'API设计一致性'),
+                     ('apiConsistency', 'API 设计一致性'),
+                     ('extraFindings', 'Deep级补充发现'), ('extraFindings', 'Deep 级补充发现')]:
+        pat = r'### ' + re.escape(zh) + r'\s*\n(.*?)(?=\n### |\Z)'
+        sm = re.search(pat, section, re.DOTALL)
+        if sm and key not in deep:
+            raw = sm.group(1).strip()
+            # 转换 markdown 列表为 HTML
+            items = []
+            current = ''
+            for line in raw.split('\n'):
+                line_stripped = line.strip()
+                if re.match(r'^[-*]\s+\*\*|^\d+\.\s+\*\*|^[-*]\s+', line_stripped):
+                    if current:
+                        items.append(md_to_html(current))
+                    current = re.sub(r'^[-*]\s+|^\d+\.\s+', '', line_stripped)
+                elif line_stripped and current:
+                    current += ' ' + line_stripped
+                elif line_stripped:
+                    current = line_stripped
+            if current:
+                items.append(md_to_html(current))
+            deep[key] = items
+
+    return deep if deep else None
+
+
 def parse_summary(text):
     """解析审计总结"""
     summary = {}
@@ -365,6 +407,7 @@ def parse_report(md_path):
     tree = parse_tree(text)
     modules = parse_modules(text)
     summary = parse_summary(text)
+    deep = parse_deep_analysis(text)
     stack = estimate_stack(modules, text)
     stats = build_stats(header, modules, text)
 
@@ -423,6 +466,8 @@ def parse_report(md_path):
         'triage': triage,
         'thirdPartyDeps': third_party,
         'summary': summary,
+        'deep': deep,
+        'hasDeep': deep is not None,
     }
     return report
 
@@ -435,13 +480,13 @@ def parse_index_report(md_path):
 
     md_dir = os.path.dirname(os.path.abspath(md_path))
 
-    # ── 头部：扫描目标和日期 ──
+    # ── 头部：扫描目标和日期（兼容中英文字段名）──
     target, date, desc = '', '', ''
-    m = re.search(r'\*\*目标\*\*[：:]\s*`?([^`\n]+)`?', text)
+    m = re.search(r'\*\*(?:目标|Target)\*\*[：:]\s*`?([^`\n]+)`?', text)
     if m: target = m.group(1).strip()
-    m = re.search(r'\*\*扫描日期\*\*[：:]\s*(\S+)', text)
+    m = re.search(r'\*\*(?:扫描日期|Scan Time|Scan Date)\*\*[：:]\s*(\S+)', text)
     if m: date = m.group(1).strip()
-    m = re.search(r'\*\*概述\*\*[：:]\s*(.+?)(?:\n|$)', text)
+    m = re.search(r'\*\*(?:概述|Description|Sub-projects)\*\*[：:]\s*(.+?)(?:\n|$)', text)
     if m: desc = m.group(1).strip()
 
     # 如果没有明确头部字段，尝试从路径提取
@@ -462,13 +507,13 @@ def parse_index_report(md_path):
             if not cells:
                 continue
             proj = {}
-            # 按已知列名映射
+            # 按已知列名映射（兼容中英文）
             col_map = {
-                '子项目': 'name', '名称': 'name',
-                '构建系统': 'buildSystem',
-                '文件数': 'files', '源码文件': 'files',
-                '体积': 'size', '代码体积': 'size',
-                '技术栈': 'stack',
+                '子项目': 'name', '名称': 'name', 'Project': 'name',
+                '构建系统': 'buildSystem', 'Build System': 'buildSystem',
+                '文件数': 'files', '源码文件': 'files', 'Source Files': 'files',
+                '体积': 'size', '代码体积': 'size', 'Source Size': 'size',
+                '技术栈': 'stack', 'Tech Stack': 'stack',
             }
             verdicts_sum = {'核心基石': 0, '提纯合并': 0, '重塑提取': 0, '彻底淘汰': 0}
             for i, h in enumerate(headers):
@@ -484,12 +529,61 @@ def parse_index_report(md_path):
                         pass
             if not proj.get('name'):
                 continue
+            # 剥离 markdown 链接语法: [name](path) → name，并记录链接路径
+            link_path = ''
+            link_match = re.match(r'\[(.+?)\]\((.+?)\)', proj['name'])
+            if link_match:
+                proj['name'] = link_match.group(1)
+                link_path = link_match.group(2)  # e.g. "ai/index.md"
             proj['verdicts'] = verdicts_sum
-            # 关联 HTML 文件（同目录下同名 .html）
-            html_name = re.sub(r'[\\/:*?"<>|]', '_', proj['name']) + '.html'
-            html_path = os.path.join(md_dir, html_name)
-            proj['htmlFile'] = html_name if os.path.exists(html_path) else ''
+            # 关联 HTML 文件：优先用链接路径推导，否则查找 name/index.html 或 name.html
+            html_file = ''
+            if link_path:
+                # ai/index.md → ai/index.html
+                html_candidate = re.sub(r'\.md$', '.html', link_path)
+                if os.path.exists(os.path.join(md_dir, html_candidate)):
+                    html_file = html_candidate
+            if not html_file:
+                # 尝试 name/index.html
+                candidate = os.path.join(proj['name'], 'index.html')
+                if os.path.exists(os.path.join(md_dir, candidate)):
+                    html_file = candidate
+            if not html_file:
+                # 尝试 name.html
+                candidate = re.sub(r'[\\/:*?"<>|]', '_', proj['name']) + '.html'
+                if os.path.exists(os.path.join(md_dir, candidate)):
+                    html_file = candidate
+            proj['htmlFile'] = html_file
             subprojects.append(proj)
+
+    # ── 从全局资产判决汇总表补充 verdict 数据 ──
+    verdict_table_m = re.search(r'## 全局资产判决汇总\s*\n.*?\n\|[-| :]+\|\s*\n((?:\|.+\|\s*\n?)+)', text)
+    if verdict_table_m:
+        verdict_map = {}  # name → {核心基石: N, ...}
+        for line in verdict_table_m.group(1).strip().split('\n'):
+            cells = [clean(c) for c in line.split('|')[1:] if c != '']
+            while cells and not cells[-1]:
+                cells.pop()
+            if not cells or len(cells) < 6:
+                continue
+            name = strip_backtick(strip_bold(cells[0]))
+            if name.startswith('**') or name == '合计':
+                continue
+            # 总判决列格式: "3/8/5/9" 或 "6/4+/5/18+"
+            total_col = cells[-1] if len(cells) >= 6 else ''
+            parts = re.findall(r'(\d+)\+?', total_col)
+            if len(parts) >= 4:
+                verdict_map[name] = {
+                    '核心基石': int(parts[0]),
+                    '提纯合并': int(parts[1]),
+                    '重塑提取': int(parts[2]),
+                    '彻底淘汰': int(parts[3]),
+                }
+        # 将 verdict 数据合并到 subprojects
+        for proj in subprojects:
+            name = proj.get('name', '')
+            if name in verdict_map:
+                proj['verdicts'] = verdict_map[name]
 
     # ── 交叉审阅章节 ──
     overlaps, topology, revisions, actions = [], [], [], []
@@ -498,13 +592,21 @@ def parse_index_report(md_path):
     if cross_m:
         cross_text = cross_m.group(1)
 
-        # 能力重叠表
+        # 能力重叠表（兼容 3 列和 4 列格式）
         ov_h, ov_rows = parse_md_table(cross_text + '\n## END', '### 能力重叠地图')
         for row in ov_rows:
-            while len(row) < 3: row.append('')
-            overlaps.append({'capability': strip_backtick(row[0]),
-                             'modules': md_to_html(row[1]),
-                             'suggestion': md_to_html(row[2])})
+            while len(row) < 4: row.append('')
+            if len(ov_h) >= 4:
+                # 4 列: 能力域 | 重复模块 | 重复次数 | 建议合并路径
+                overlaps.append({'capability': strip_backtick(row[0]),
+                                 'modules': md_to_html(row[1]),
+                                 'count': strip_backtick(row[2]),
+                                 'suggestion': md_to_html(row[3])})
+            else:
+                # 3 列: 能力域 | 重复模块 | 建议合并路径
+                overlaps.append({'capability': strip_backtick(row[0]),
+                                 'modules': md_to_html(row[1]),
+                                 'suggestion': md_to_html(row[2])})
 
         # 依赖拓扑表
         tp_h, tp_rows = parse_md_table(cross_text + '\n## END', '### 依赖拓扑')
@@ -522,10 +624,173 @@ def parse_index_report(md_path):
                               'revised': strip_bold(row[2]),
                               'reason': md_to_html(row[3])})
 
-        # 行动优先级（有序列表）
-        act_m = re.search(r'### 重构行动优先级\s*\n((?:\d+\..+\n?)+)', cross_text)
+        # 行动优先级（有序列表，兼容多行条目——以数字开头为新条目，否则续接上一条）
+        act_m = re.search(r'### 重构行动优先级\s*\n((?:[ \t]*\d+\..+\n?|[ \t]+-.+\n?|[ \t]+[^\n]+\n?)+)', cross_text)
         if act_m:
-            actions = [re.sub(r'^\d+\.\s*', '', l.strip()) for l in act_m.group(1).strip().split('\n') if l.strip()]
+            raw_lines = act_m.group(1).strip().split('\n')
+            for l in raw_lines:
+                l = l.strip()
+                if re.match(r'^\d+\.', l):
+                    actions.append(re.sub(r'^\d+\.\s*', '', l))
+                elif actions:
+                    actions[-1] += ' ' + re.sub(r'^-\s*', '', l)
+
+    # ── 全局关键风险表（跨模块交叉审阅内或独立章节）──
+    risks = []
+    risk_h, risk_rows = parse_md_table(text, '### 全局关键风险')
+    for row in risk_rows:
+        while len(row) < 4: row.append('')
+        risks.append({'risk': md_to_html(row[0]), 'severity': strip_bold(row[1]),
+                      'scope': md_to_html(row[2]), 'suggestion': md_to_html(row[3])})
+
+    # ── Deep 级深度分析 ──
+    deep = parse_deep_analysis(text)
+
+    # ── 从子项目 .md 文件聚合 verdict 数据（当子项目表无 verdict 列时）──
+    any_has_verdict = any(sum(p.get('verdicts', {}).values()) > 0 for p in subprojects)
+    if not any_has_verdict and subprojects:
+        for proj in subprojects:
+            # 尝试读取子项目的 .md 文件，从中提取 verdict 统计
+            child_md = ''
+            if proj.get('htmlFile'):
+                child_md = re.sub(r'\.html$', '.md', proj['htmlFile'])
+            if not child_md:
+                child_md = os.path.join(proj['name'], 'index.md')
+            child_md_path = os.path.join(md_dir, child_md)
+            if not os.path.exists(child_md_path):
+                # 也尝试 name.md
+                child_md_path = os.path.join(md_dir, proj['name'] + '.md')
+            if os.path.exists(child_md_path):
+                try:
+                    with open(child_md_path, 'r', encoding='utf-8') as cf:
+                        child_text = cf.read()
+                    # 从子报告中统计 verdict：搜索 "定论判决：XXX" 模式
+                    verdicts = {'核心基石': 0, '提纯合并': 0, '重塑提取': 0, '彻底淘汰': 0}
+                    for vm in re.finditer(r'定论判决[：:]\s*\*{0,2}(核心基石|提纯合并|重塑提取|彻底淘汰)', child_text):
+                        v = vm.group(1)
+                        if v in verdicts:
+                            verdicts[v] += 1
+                    # 也检查资产定级表的判决列
+                    triage_h_child, triage_rows_child = parse_md_table(child_text, '## 三、资产定级表')
+                    for row in triage_rows_child:
+                        if len(row) >= 7:
+                            v = strip_bold(row[6]).strip('*').strip()
+                            if v in verdicts:
+                                verdicts[v] += 1
+                    if sum(verdicts.values()) > 0:
+                        proj['verdicts'] = verdicts
+                except Exception:
+                    pass
+
+    # ── 检测混合格式：index.md 中是否包含三段式报告 ──
+    tree = ''
+    modules = []
+    triage = []
+    if '## 一、资产总览树' in text or '## 一' in text:
+        tree = parse_tree(text)
+        modules = parse_modules(text)
+        triage_h, triage_rows = parse_md_table(text, '## 三、资产定级表')
+        for row in triage_rows:
+            while len(row) < 7: row.append('')
+            triage.append({
+                'module': strip_backtick(strip_bold(row[0])),
+                'function': md_to_html(row[1]),
+                'thirdParty': md_to_html(row[2]),
+                'deps': md_to_html(row[3]),
+                'activity': md_to_html(row[4]),
+                'quality': md_to_html(row[5]),
+                'verdict': strip_bold(row[6]).strip('*'),
+            })
+
+    # ── 混合格式下：从 triage/modules 向 subprojects 回填 verdict ──
+    any_has_verdict2 = any(sum(p.get('verdicts', {}).values()) > 0 for p in subprojects)
+    if not any_has_verdict2 and (modules or triage):
+        sp_names = {sp['name'] for sp in subprojects}
+
+        # 优先用 triage 表（每行一个模块，名称清晰）
+        if triage:
+            proj_verdicts = {}  # name → {verdict → count}
+            for t in triage:
+                v = t.get('verdict', '')
+                if v not in ('核心基石', '提纯合并', '重塑提取', '彻底淘汰'):
+                    continue
+                tname = strip_backtick(strip_bold(t.get('module', ''))).strip()
+                # 直接名称匹配
+                if tname in sp_names:
+                    proj_verdicts.setdefault(tname, {'核心基石': 0, '提纯合并': 0, '重塑提取': 0, '彻底淘汰': 0})
+                    proj_verdicts[tname][v] += 1
+                else:
+                    # 模糊匹配：triage 模块名包含子项目名或反之
+                    for sp_name in sp_names:
+                        if sp_name in tname or tname in sp_name:
+                            proj_verdicts.setdefault(sp_name, {'核心基石': 0, '提纯合并': 0, '重塑提取': 0, '彻底淘汰': 0})
+                            proj_verdicts[sp_name][v] += 1
+                            break
+            for sp in subprojects:
+                if sp['name'] in proj_verdicts:
+                    sp['verdicts'] = proj_verdicts[sp['name']]
+
+        # 补充：用 modules 的 path 匹配未命中的子项目
+        if modules:
+            for m in modules:
+                v = m.get('verdict', '')
+                if v not in ('核心基石', '提纯合并', '重塑提取', '彻底淘汰'):
+                    continue
+                path = m.get('path', '')
+                mname = m.get('name', '')
+                for sp in subprojects:
+                    if sum(sp.get('verdicts', {}).values()) > 0:
+                        continue  # 已有 verdict
+                    sp_name = sp['name']
+                    if sp_name and (sp_name + '/' in path or sp_name + '\\' in path
+                                     or path.endswith(sp_name) or path.endswith(sp_name + '/')
+                                     or sp_name == mname):
+                        sp.setdefault('verdicts', {'核心基石': 0, '提纯合并': 0, '重塑提取': 0, '彻底淘汰': 0})
+                        sp['verdicts'][v] += 1
+
+    # ── 标记哪些子项目有 Deep 分析（递归搜索子目录）──
+    has_deep_flag = deep is not None
+    DEEP_MARKER = '## Deep 级深度分析'
+    for proj in subprojects:
+        proj['hasDeep'] = False
+        proj['deepCount'] = 0
+        # 确定子项目对应的目录
+        proj_dir = None
+        if proj.get('htmlFile'):
+            candidate = os.path.join(md_dir, os.path.dirname(proj['htmlFile']))
+            if os.path.isdir(candidate):
+                proj_dir = candidate
+        if not proj_dir:
+            candidate = os.path.join(md_dir, proj['name'])
+            if os.path.isdir(candidate):
+                proj_dir = candidate
+        # 也检查同级 .md 文件（如 base.md）
+        flat_md = os.path.join(md_dir, proj['name'] + '.md')
+        if os.path.isfile(flat_md):
+            try:
+                with open(flat_md, 'r', encoding='utf-8') as cf:
+                    if DEEP_MARKER in cf.read(80000):
+                        proj['hasDeep'] = True
+                        proj['deepCount'] = 1
+            except Exception:
+                pass
+        # 递归搜索子目录下所有 .md 文件
+        if proj_dir and os.path.isdir(proj_dir):
+            deep_count = 0
+            for root, dirs, files in os.walk(proj_dir):
+                for fname in files:
+                    if not fname.endswith('.md'):
+                        continue
+                    fpath = os.path.join(root, fname)
+                    try:
+                        with open(fpath, 'r', encoding='utf-8') as cf:
+                            if DEEP_MARKER in cf.read(80000):
+                                deep_count += 1
+                    except Exception:
+                        pass
+            if deep_count > 0:
+                proj['hasDeep'] = True
+                proj['deepCount'] = max(proj.get('deepCount', 0), deep_count)
 
     # ── 审计总结（复用 parse_summary）──
     summary = parse_summary(text)
@@ -539,11 +804,28 @@ def parse_index_report(md_path):
         'date': date,
         'desc': desc,
         'subprojects': subprojects,
+        'tree': tree,
+        'modules': [{
+            'name': m['name'],
+            'path': m.get('path', ''),
+            'verdict': m.get('verdict', ''),
+            'function': m.get('function', ''),
+            'coreClasses': m.get('coreClasses', ''),
+            'deps': m.get('deps', ''),
+            'thirdParty': m.get('thirdParty', ''),
+            'codeSize': m.get('codeSize', ''),
+            'quality': m.get('quality', ''),
+            'activity': m.get('activity', ''),
+        } for m in modules],
+        'triage': triage,
         'overlaps': overlaps,
         'topology': topology,
         'revisions': revisions,
         'actions': actions,
+        'risks': risks,
         'summary': summary,
+        'deep': deep,
+        'hasDeep': has_deep_flag,
     }
 
 
