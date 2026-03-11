@@ -5,133 +5,161 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-lightgrey)]()
 [![Agent Skill](https://img.shields.io/badge/Agent-Skill-7B61FF)]()
 
-**中文** | [English](README_en.md)
+**English** | [中文](README_zh.md)
 
-> Agent Skill：架构级跨技术栈源码资产扫描和分析工具。
+> An Agent Skill for architecture-level, cross-tech-stack source code asset scanning and analysis.
 >
-> 每个生态都有自己的依赖管理，但**没有工具能横跨所有技术栈告诉你：你到底有多少自己的代码。** 重构之前，先摸清家底。
+> Every ecosystem has its own dependency manager, but **no tool looks across all stacks and tells you: how much code is actually yours.** Know what you have before you refactor.
 >
-> 扫描完成后自动生成可交互的本地 HTML 报告，无需联网。多工程 monorepo 支持分级扫描，汇总页点击卡片跳转子项目详情。
+> Generates interactive local HTML reports — no internet required. Monorepo support with hierarchical scanning: click a card on the summary page to drill into sub-project details.
 
 ![repo-scan banner](images/banner.jpg)
 
 ---
 
-## 谁需要它
+## Who Needs It
 
-- **大型项目 / Monorepo 团队** — 项目积累多年，模块众多，需要快速掌握全局资产状况
-- **跨平台团队** — Electron、React Native、Flutter 或自研跨平台方案，多技术栈混合，没有工具给你统一视图
-- **架构师 / 技术管理者** — 重构、合并、商业化决策前，需要一份数据驱动的资产底账
-- **Native 开发者（C/C++、iOS、Android）** — 三方库散落在源码目录里，缺少统一的依赖管理和版本追踪
-- **接手遗产代码的人** — 面对陌生的百万行项目，第一步是搞清楚"有什么"而不是"改什么"
+- **Large projects / Monorepo teams** — Years of accumulated modules, need a quick global asset inventory
+- **Cross-platform teams** — Electron, React Native, Flutter or custom cross-platform — multiple tech stacks, no unified view
+- **Architects / Tech leads** — Need a data-driven asset ledger before refactoring, merging, or commercialization decisions
+- **Native developers (C/C++, iOS, Android)** — Third-party libs scattered in source dirs, no unified dependency tracking
+- **Anyone inheriting legacy code** — Step one is "what's here", not "what to change"
 
 ---
 
-## 它能做什么
+## What It Does
 
-**repo-scan** 对代码仓库做一次完整的资产清查。Python 3 零依赖，一行命令跑完。
+**repo-scan** performs a complete asset inventory of your codebase. Python 3, zero dependencies, one command.
 
-### 核心能力
+### Core Features
 
-- **三分类扫描** — 自动将文件归类为 **项目代码** / **三方依赖** / **构建产物**，精确统计占比
-- **三方库识别与版本检测** — 自动识别 50+ 已知三方库（FFmpeg、Boost、OpenSSL 等），从 VERSION 文件、头文件 `#define`、`package.json`、`CMakeLists.txt` 等提取版本号
-- **四大技术栈** — C/C++、Java/Android、iOS (OC/Swift)、Web (TS/JS/Vue) 全覆盖
-- **代码重复检测** — 发现跨目录的同名模块（疑似 copy-paste），自动排除三方库误报
-- **Git 活跃度分析** — 自动发现所有子仓库，统计提交历史（哪些模块两年没人动了？）
-- **分级报告输出** — 大型 monorepo 自动拆分为 index + 子项目报告，不超出 AI 上下文
-- **全局交叉审阅** — 所有子项目分析完成后，AI 进行二次阅读，识别跨项目能力重叠、依赖拓扑、修正判决，输出重构优先级
-- **可视化 HTML 报告** — 自动生成本地深色主题交互页面；分级模式生成 `index.html` + 各子项目详情页，卡片点击跳转
-- **AI Token 节约** — "文件名推断→关键文件精读→质量抽样"三层策略，不做穷举式逐文件阅读
+- **Three-way classification** — Automatically categorizes files into **project code** / **third-party dependencies** / **build artifacts** with accurate size metrics
+- **Third-party detection & versioning** — Auto-identifies 50+ known libraries (FFmpeg, Boost, OpenSSL, etc.) and extracts version info from VERSION files, header `#define`s, `package.json`, `CMakeLists.txt`, etc.
+- **Four tech stacks** — C/C++, Java/Android, iOS (OC/Swift), Web (TS/JS/Vue) — all covered
+- **Code duplication detection** — Finds duplicate directory names across the project, auto-excludes third-party false positives
+- **Git activity analysis** — Auto-discovers all sub-repositories with commit history and activity levels
+- **Hierarchical report output** — Large monorepos auto-split into `index.html` + sub-project reports, keeping AI context manageable
+- **Cross-module review** — After all sub-projects are analyzed, a second pass identifies capability overlaps, dependency topology, verdict corrections, and refactoring priorities
+- **Interactive HTML reports** — Auto-generated dark-theme local pages; hierarchical mode creates `index.html` with clickable cards linking to sub-project details
+- **Three analysis depth levels** — `fast` / `standard` / `deep` to balance speed vs. thoroughness
+- **Incremental deep analysis** — `deep` mode works on top of existing `standard` data, selectively analyzing high-value modules with thread safety, memory management, error handling, and API consistency checks
+- **AI token efficiency** — "Filename inference → key file reading → quality sampling" three-layer strategy, no exhaustive file reading
 
-## 输出格式
+## Analysis Depth Levels
 
-三段式 Markdown 审计报告 + 本地 HTML 可视化页面：
+| Level | Files Read (per module) | Quality Checks | Use Case |
+|-------|------------------------|----------------|----------|
+| `fast` | 1-2: build config + one key header | Dependency versions only | Quick inventory of huge directories (hundreds of modules) |
+| `standard` | 2-5: headers + entry files + build config | Full: deps, architecture, tech debt | Default audit |
+| `deep` | 5-10: adds core implementation, tests, CI | Thread safety, memory, error handling, API consistency | Incremental on top of standard data |
 
-| 段落 | 内容 |
-|------|------|
-| **资产总览树** | 真实物理目录结构，语义压缩，三方库和废弃代码已着色标记 |
-| **模块级描述** | 每个模块的功能、核心类名、依赖关系、三方库引用（含版本评估）、代码质量 |
-| **资产定级表** | 全局汇总，四级判决：**核心基石** / **提纯合并** / **重塑提取** / **彻底淘汰** |
-| **跨模块交叉审阅** | 分级模式专有：能力重叠地图、依赖拓扑、修正判决、重构优先级（二次阅读产出） |
+**Deep mode is incremental** — it detects existing scan data, auto-selects high-value modules (Core Asset + Extract & Merge verdicts), and appends detailed analysis. You can also target specific modules:
 
-### 可视化 HTML 报告
+```
+/repo-scan /path/to/project --level deep                          # auto-select modules
+/repo-scan /path/to/project --level deep --modules base,rtmp_sdk  # specific modules
+```
 
-扫描完成后自动生成本地 HTML 页面，无需联网，浏览器直接打开。
+## Output
 
-![统计概览与资产总览树](images/screenshot-overview.png)
+Three-section Markdown audit report + local HTML visualization:
 
-![资产定级表](images/screenshot-triage.png)
+| Section | Content |
+|---------|---------|
+| **Architecture Tree** | Real physical directory structure, semantically compressed, third-party and dead code color-coded |
+| **Module Descriptions** | Function, core class names, dependencies, third-party references (with version assessment), code quality, four-level verdict |
+| **Asset Triage Table** | Global summary with verdict: **Core Asset** / **Extract & Merge** / **Rebuild** / **Deprecate** |
+| **Cross-Module Review** | Hierarchical mode: capability overlap map, dependency topology, verdict corrections, refactoring priorities |
+| **Deep Analysis** | Incremental: per-file review, thread safety, memory management, error handling, API consistency (with purple DEEP badge) |
 
-## 项目结构
+### HTML Report
+
+Auto-generated after scan. Dark theme, interactive, no internet required.
+
+![Statistics overview and architecture tree](images/screenshot-overview.png)
+
+![Asset triage table](images/screenshot-triage.png)
+
+**HTML features:**
+- Statistics cards (sub-project count, source files, verdict distribution)
+- Verdict distribution bars on project cards (green/yellow/purple/red)
+- **DEEP** badges on projects with deep analysis (with count: `DEEP ×3`)
+- Collapsible sections for tree, modules, triage, cross-review, deep analysis
+- Clickable cards linking to sub-project detail pages
+
+## Project Structure
 
 ```
 repo-scan/
-├── SKILL.md                       # 技能主文件（Agent 加载入口）
-├── reference.md                   # 各技术栈审计维度速查表
+├── SKILL.md                       # Skill definition (Agent entry point)
+├── reference.md                   # Tech stack audit reference tables
 ├── config/
-│   └── ignore-patterns.json       # 可配置的忽略/识别模式
+│   └── ignore-patterns.json       # Configurable ignore/recognition patterns
 ├── scripts/
-│   ├── pre-scan.py                # 预扫描脚本（Python 3，零依赖）
-│   └── gen_html.py                # HTML 生成脚本（Markdown 报告 → 可视化页面）
+│   ├── pre-scan.py                # Pre-scan script (Python 3, zero deps)
+│   └── gen_html.py                # HTML generator (Markdown → interactive pages)
 └── templates/
-    ├── report.html                # 单项目报告模板（深色主题，可交互）
-    └── index.html                 # 多项目汇总模板（子项目卡片 + 跨模块分析）
+    ├── report.html                # Single project report template (dark theme)
+    └── index.html                 # Multi-project summary template (cards + cross-analysis)
 ```
 
-## 安装
+## Installation
 
-将本仓库克隆到 Agent 的技能目录：
+Clone into your Agent's skills directory:
 
 ```bash
-# 全局技能目录
+# Global skills directory
 git clone https://github.com/haibindev/repo-scan.git ~/.claude/skills/repo-scan
 
-# 或项目级技能目录
+# Or project-level
 git clone https://github.com/haibindev/repo-scan.git .claude/skills/repo-scan
 ```
 
-## 使用方法
+## Usage
 
-### 作为 Agent 技能
+### As an Agent Skill
 
 ```
 /repo-scan /path/to/my-project
+/repo-scan /path/to/my-project --level fast
+/repo-scan /path/to/my-project --level deep
+/repo-scan /path/to/my-project --level deep --modules base,encoder
 ```
 
-### 单独运行预扫描脚本
+### Standalone Pre-scan Script
 
 ```bash
-python scripts/pre-scan.py /path/to/project                    # 输出到终端
-python scripts/pre-scan.py /path/to/project -o report.md       # 单文件报告
-python scripts/pre-scan.py /path/to/project -d ./scan-output   # 分级目录报告（大型项目推荐）
-python scripts/pre-scan.py /path/to/project -c config.json     # 自定义配置
+python scripts/pre-scan.py /path/to/project                    # print to stdout
+python scripts/pre-scan.py /path/to/project -o report.md       # single file report
+python scripts/pre-scan.py /path/to/project -d ./scan-output   # hierarchical (recommended for large projects)
+python scripts/pre-scan.py /path/to/project -c config.json     # custom config
 ```
 
-### 预扫描输出章节
+### Pre-scan Output Sections
 
-| # | 章节 | 说明 |
-|---|------|------|
-| 1 | 总体统计 | 项目代码 / 三方库 / 构建产物 三分类统计 |
-| 2 | 顶级目录分解 | 每个顶级目录的文件数、体积、构建系统、分类标记 |
-| 3 | 技术栈统计 | 按技术栈（C/C++、Java、iOS、Web）分类统计源码文件 |
-| 4 | 三方依赖清单 | 已识别的三方库（库名、版本、位置、体积） |
-| 5 | 代码重复检测 | 同名目录出现 3+ 次的疑似代码重复 |
-| 6 | 目录树 | 过滤噪声、标记三方库的清洁目录树 |
-| 7 | Git 活跃度 | 所有子仓库的提交历史和活跃度 |
-| 8 | 噪声汇总 | 构建产物按类型聚合统计 |
+| # | Section | Description |
+|---|---------|-------------|
+| 1 | Overall Statistics | Three-way split: project / third-party / build artifacts |
+| 2 | Top-Level Breakdown | File count, size, build system, classification per directory |
+| 3 | Tech Stack Stats | Per-stack (C/C++, Java, iOS, Web) source file counts |
+| 4 | Third-Party Deps | Detected libraries with name, version, location, size |
+| 5 | Code Duplication | Directories appearing 3+ times (potential copy-paste) |
+| 6 | Directory Tree | Clean tree with noise filtered and third-party marked |
+| 7 | Git Activity | Commit history and activity for all discovered repos |
+| 8 | Noise Summary | Build artifact sizes aggregated by type |
 
-## 自定义配置
+## Configuration
 
-编辑 `config/ignore-patterns.json` 自定义忽略和识别模式：
+Edit `config/ignore-patterns.json` to customize patterns:
 
 ```jsonc
 {
   "noise_dirs": {
-    "common": [".git", ".svn", "obj", "tmp"],       // 通用噪声目录
-    "cpp": ["Debug", "Release", "x64", "ipch"],      // C/C++ 构建产物
-    "java_android": [".gradle", "build", "target"],   // Java/Android
-    "ios": ["DerivedData", "Pods", "xcuserdata"],     // iOS
-    "web": ["node_modules", "dist", ".next"]          // Web
+    "common": [".git", ".svn", "obj", "tmp"],
+    "cpp": ["Debug", "Release", "x64", "ipch"],
+    "java_android": [".gradle", "build", "target"],
+    "ios": ["DerivedData", "Pods", "xcuserdata"],
+    "web": ["node_modules", "dist", ".next"]
   },
   "thirdparty_dirs": {
     "container_names": ["vendor", "external", "libs"],
@@ -143,16 +171,16 @@ python scripts/pre-scan.py /path/to/project -c config.json     # 自定义配置
 }
 ```
 
-## 系统要求
+## Requirements
 
 - Python 3.6+
-- 支持自定义技能的 AI Agent（如 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)）
-- Git（可选，用于活跃度分析）
+- An AI Agent with custom skill support (e.g. [Claude Code](https://docs.anthropic.com/en/docs/claude-code))
+- Git (optional, for activity analysis)
 
-## 星标历史
+## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=haibindev/repo-scan&type=Date)](https://star-history.com/#haibindev/repo-scan&Date)
 
-## 许可证
+## License
 
 [MIT](LICENSE)
