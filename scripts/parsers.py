@@ -598,6 +598,7 @@ def parse_index_report(md_path):
                 '体积': 'size', '代码体积': 'size', 'Source Size': 'size',
                 '技术栈': 'stack', 'Tech Stack': 'stack',
                 '最后修改': 'lastModified', 'Last Modified': 'lastModified',
+                '判决': 'verdict',
             }
             verdicts_sum = {'核心基石': 0, '提纯合并': 0, '重塑提取': 0, '彻底淘汰': 0}
             for i, h in enumerate(headers):
@@ -620,6 +621,12 @@ def parse_index_report(md_path):
                 proj['name'] = link_match.group(1)
                 link_path = link_match.group(2)  # e.g. "ai/index.md"
             proj['verdicts'] = verdicts_sum
+            # 如果表格有直接的 verdict 列（如 "核心基石"/"提纯合并"），转为 verdicts dict
+            if proj.get('verdict'):
+                v_text = strip_bold(proj['verdict']).strip('*').strip()
+                if v_text in verdicts_sum:
+                    proj['verdicts'] = {'核心基石': 0, '提纯合并': 0, '重塑提取': 0, '彻底淘汰': 0}
+                    proj['verdicts'][v_text] = 1
             # 关联 HTML 文件：优先用链接路径推导，否则查找 name/index.html 或 name.html
             html_file = ''
             if link_path:
@@ -641,28 +648,42 @@ def parse_index_report(md_path):
             subprojects.append(proj)
 
     # ── 从全局资产判决汇总表补充 verdict 数据 ──
-    verdict_table_m = re.search(r'## 全局资产判决汇总[\s\S]*?\|[-| :]+\|\s*\n((?:\|.+\|\s*\n?)+)', text)
+    verdict_table_m = re.search(r'## 全局资产判决汇总[^\n]*\n[^\n]*\|[-| :]+\|\s*\n((?:\|.+\|\s*\n?)+)', text)
     if verdict_table_m:
-        verdict_map = {}  # name → {核心基石: N, ...}
+        verdict_map = {}  # verdict_name → list of module names
         for line in verdict_table_m.group(1).strip().split('\n'):
             cells = [clean(c) for c in line.split('|')[1:] if c != '']
             while cells and not cells[-1]:
                 cells.pop()
-            if not cells or len(cells) < 6:
+            if not cells:
                 continue
-            name = strip_backtick(strip_bold(cells[0]))
-            if name.startswith('**') or name == '合计':
-                continue
-            # 总判决列格式: "3/8/5/9" 或 "6/4+/5/18+"
-            total_col = cells[-1] if len(cells) >= 6 else ''
-            parts = re.findall(r'(\d+)\+?', total_col)
-            if len(parts) >= 4:
-                verdict_map[name] = {
-                    '核心基石': int(parts[0]),
-                    '提纯合并': int(parts[1]),
-                    '重塑提取': int(parts[2]),
-                    '彻底淘汰': int(parts[3]),
-                }
+            # 支持两种格式:
+            # 格式A (3列): 判决 | 模块数 | 模块列表
+            # 格式B (6列): name | ... | 总判决 "3/8/5/9"
+            if len(cells) >= 6:
+                name = strip_backtick(strip_bold(cells[0]))
+                if name.startswith('**') or name == '合计':
+                    continue
+                total_col = cells[-1]
+                parts = re.findall(r'(\d+)\+?', total_col)
+                if len(parts) >= 4:
+                    verdict_map[name] = {
+                        '核心基石': int(parts[0]),
+                        '提纯合并': int(parts[1]),
+                        '重塑提取': int(parts[2]),
+                        '彻底淘汰': int(parts[3]),
+                    }
+            elif len(cells) >= 3:
+                # 格式A: | **核心基石** | 13 | remux, output_hls, ... |
+                verdict_name = strip_bold(cells[0]).strip('*').strip()
+                if verdict_name not in ('核心基石', '提纯合并', '重塑提取', '彻底淘汰'):
+                    continue
+                modules_text = cells[2] if len(cells) > 2 else ''
+                # 提取模块名列表（逗号分隔，可能有 backtick）
+                module_names = [strip_backtick(n.strip()) for n in modules_text.split(',') if n.strip() and n.strip() != '—']
+                for mname in module_names:
+                    verdict_map.setdefault(mname, {'核心基石': 0, '提纯合并': 0, '重塑提取': 0, '彻底淘汰': 0})
+                    verdict_map[mname][verdict_name] = 1
         # 将 verdict 数据合并到 subprojects
         for proj in subprojects:
             name = proj.get('name', '')
@@ -672,7 +693,7 @@ def parse_index_report(md_path):
     # ── 交叉审阅章节 ──
     overlaps, topology, revisions, actions = [], [], [], []
 
-    cross_m = re.search(r'## 跨模块交叉审阅\s*\n(.*?)(?:\n## |\Z)', text, re.DOTALL)
+    cross_m = re.search(r'## 跨模块交叉审阅[^\n]*\n(.*?)(?:\n## (?!#)|\Z)', text, re.DOTALL)
     if cross_m:
         cross_text = cross_m.group(1)
 
@@ -708,15 +729,27 @@ def parse_index_report(md_path):
                               'revised': strip_bold(row[2]),
                               'reason': md_to_html(row[3])})
 
-        # 行动优先级（有序列表，兼容多行条目——以数字开头为新条目，否则续接上一条）
-        act_m = re.search(r'### 重构行动优先级\s*\n((?:[ \t]*\d+\..+\n?|[ \t]+-.+\n?|[ \t]+[^\n]+\n?)+)', cross_text)
+        # 行动优先级（有序列表，兼容多种格式:
+        #   1. 直接编号列表
+        #   2. #### P0/P1/... 子标题 + 编号列表
+        # 提取从 ### 重构行动优先级 到下一个 ### 的全部内容）
+        act_m = re.search(r'### 重构行动优先级\s*\n(.*?)(?=\n### |\Z)', cross_text, re.DOTALL)
         if act_m:
             raw_lines = act_m.group(1).strip().split('\n')
+            current_prefix = ''
             for l in raw_lines:
                 l = l.strip()
+                if not l:
+                    continue
+                # #### P0 — 子标题: 提取为前缀
+                sub_m = re.match(r'^#{3,5}\s*(P\d+)\s*[—\-:]+\s*(.*)', l)
+                if sub_m:
+                    current_prefix = f'[{sub_m.group(1)}] '
+                    continue
                 if re.match(r'^\d+\.', l):
-                    actions.append(re.sub(r'^\d+\.\s*', '', l))
-                elif actions:
+                    item = re.sub(r'^\d+\.\s*', '', l)
+                    actions.append(current_prefix + item)
+                elif actions and not l.startswith('#'):
                     actions[-1] += ' ' + re.sub(r'^-\s*', '', l)
 
     # ── 全局关键风险表（跨模块交叉审阅内或独立章节）──
