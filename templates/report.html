@@ -149,6 +149,7 @@
     <div class="meta">
       <span id="scanTarget">目标路径: —</span> &nbsp;|&nbsp;
       <span id="scanDate">扫描日期: —</span>
+      <span id="scanDates" style="display:none"> &nbsp;|&nbsp; 源码修改: <span id="dateRange"></span></span>
     </div>
     <div class="desc" id="scanDesc"></div>
   </div>
@@ -240,6 +241,11 @@ function init() {
     (REPORT.hasDeep ? ' <span class="deep-badge" style="font-size:13px;vertical-align:middle">DEEP</span>' : '');
   document.getElementById('scanTarget').textContent = '目标路径: ' + (REPORT.target || '—');
   document.getElementById('scanDate').textContent = '扫描日期: ' + (REPORT.date || '—');
+  if (REPORT.oldestSource || REPORT.newestSource) {
+    var range = (REPORT.oldestSource||'?') + ' ~ ' + (REPORT.newestSource||'?');
+    document.getElementById('dateRange').textContent = range;
+    document.getElementById('scanDates').style.display = '';
+  }
   if (REPORT.desc) document.getElementById('scanDesc').textContent = REPORT.desc;
   renderStats(); renderStackBar(); renderTree(); renderModules(); renderTriage(); renderDeps(); renderDeep(); renderSummary();
 }
@@ -304,6 +310,15 @@ function renderDeep() {
     items.forEach(function(item) { h += '<li>' + item + '</li>'; });
     h += '</ul></div>';
   });
+  // 判决修正（特殊样式）
+  var vr = d.verdictRevision;
+  if (vr && vr.length) {
+    h += '<div class="deep-subsection" style="border:1px solid var(--red);border-radius:8px;padding:16px;background:rgba(248,81,73,0.05)">';
+    h += '<h4 style="color:var(--red);border-bottom-color:var(--red)"><span class="deep-badge" style="border-color:var(--red);color:var(--red);background:rgba(248,81,73,0.15)">REVISED</span>判决修正</h4>';
+    h += '<ul>';
+    vr.forEach(function(item) { h += '<li>' + item + '</li>'; });
+    h += '</ul></div>';
+  }
   document.getElementById('deepBody').innerHTML = h;
 }
 function renderSummary() {

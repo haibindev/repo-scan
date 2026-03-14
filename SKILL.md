@@ -1,7 +1,7 @@
 ---
 name: repo-scan
 description: 对指定项目源码目录执行全面资产审计，生成《全网模块与源码资产审计详细清单》。当用户要求"审计源码"、"盘点代码资产"、"生成清单"时自动触发。
-argument-hint: <目标源码目录路径> [--level fast|standard|deep] [--modules mod1,mod2,...]
+argument-hint: <目标源码目录路径> [--level fast|standard|deep|full] [--modules mod1,mod2,...] [--refresh] [--gap-check]
 allowed-tools: Bash, Read, Glob, Grep, Write, Edit
 ---
 
@@ -80,96 +80,78 @@ python "${CLAUDE_SKILL_DIR}/scripts/pre-scan.py" "$ARGUMENTS" -o "$ARGUMENTS/rep
 |---|---|---|---|
 | `fast` | **1-2 个**：仅构建配置 + 最核心的 1 个头文件/接口 | 仅从构建配置推断依赖版本，不做代码级质量判断 | 超大目录（数百模块）快速摸底，先出全景再定点深钻 |
 | `standard` | **2-5 个**：头文件/接口 + 入口文件 + 构建配置 | 完整抽样：依赖引用 + 架构模式 + 技术债标记 | 常规审计（默认） |
-| `deep` | **5-10 个**：在 standard 基础上增加核心业务实现文件、测试文件、CI 配置 | 深度抽样：额外检查错误处理模式、线程安全、内存管理、API 设计一致性 | 增量深度审计（见下方说明） |
+| `deep` | **5-10 个**：standard + 核心实现/测试/CI | 深度抽样：错误处理/线程安全/内存/API 一致性 | 增量深度审计（详见 `deep-mode.md`） |
+| `full` | **全部文件**：模块内每一个源码文件均精读 | 全量分析 + **横向对比**：跨文件功能相似性检测 | 整合前全面摸底、复核候选决策（详见 `full-mode.md`） |
 
 **参数解析规则**：
 - 从 `$ARGUMENTS` 中提取 `--level` 和 `--modules` 值，剩余部分作为目标路径
 - 示例：`/repo-scan D:\projects --level fast` → 路径 `D:\projects`，精度 `fast`
 - 示例：`/repo-scan D:\projects --level deep` → 增量 deep（自动筛选高价值模块）
 - 示例：`/repo-scan D:\projects --level deep --modules base,rtmp_encoder_sdk` → 指定模块 deep
+- 示例：`/repo-scan D:\projects --level full --modules base` → 指定模块 full（全文件精读 + 横向对比）
 - 未指定 `--level` 时等同于 `--level standard`
+- `--refresh`：仅重新生成顶层交叉审阅（不执行新的源码分析），详见 `${CLAUDE_SKILL_DIR}/deep-mode.md` 的"顶层刷新模式"章节
+- `--gap-check`：增量能力差异检测模式（见下方说明）
 
-### deep 级别：增量模式（核心机制）
+> **deep 模式与 --modules 参数**：当使用 `--level deep` 或 `--modules` 参数时，必须先读取 `${CLAUDE_SKILL_DIR}/deep-mode.md` 获取完整的增量分析流程、模块匹配规则和判决冒泡机制。
+>
+> **full 模式**：当使用 `--level full` 时，必须先读取 `${CLAUDE_SKILL_DIR}/full-mode.md` 获取全量扫描流程、.h/.cpp 配对规则和横向对比机制。
+>
+> **--refresh 模式**：当使用 `--refresh` 参数时，必须先读取 `${CLAUDE_SKILL_DIR}/deep-mode.md` 获取顶层刷新流程。
+>
+> **--gap-check 模式**：增量能力差异检测，不重新执行 repo-scan，而是用 SHA256 对比 hbcore 已有模块与 best candidate 目录的文件差异，提取 C++ 符号级的能力 gap。详见下节。
 
-**deep 不是独立的全量扫描，而是在已有 standard/fast 数据基础上的增量深度分析。**
+### --gap-check 增量能力差异检测
 
-#### 执行流程
+**场景**：repo-scan 已完成，hbcore 模块整合进行中或完成后，需要验证是否遗漏了候选目录中的新能力。
 
-```
---level deep 触发后：
-│
-├─ Step D0：检测已有数据
-│   ├─ scan-output 目录存在且有 .md 文件？
-│   │   ├─ 是 → 进入增量模式（Step D1）
-│   │   └─ 否 → 先以 standard 级别执行完整扫描，完成后自动进入 Step D1
-│   │
-├─ Step D1：筛选 deep 目标模块
-│   ├─ 用户指定了 --modules？
-│   │   ├─ 是 → 使用用户指定的模块列表
-│   │   └─ 否 → 自动筛选（见下方规则）
-│   │
-├─ Step D2：对每个目标模块执行 deep 精读（5-10 个文件）
-│   ├─ 读取已有 .md 了解 standard 分析结果（避免重复工作）
-│   ├─ 精读核心实现文件、测试文件、CI 配置
-│   └─ 执行深度质量抽样（线程安全/内存/错误处理/API一致性）
-│
-├─ Step D3：将 deep 分析追加到已有 .md 文件末尾
-│
-└─ Step D4：重新生成受影响的 HTML（gen_html.py 自动识别 deep 章节）
-```
+**工具**：`${CLAUDE_SKILL_DIR}/scripts/capability_gap.py`
 
-#### 自动筛选规则（无 --modules 时）
+```bash
+# 检测所有已配置模块
+py -3 "${CLAUDE_SKILL_DIR}/scripts/capability_gap.py"
 
-从已有 standard 数据中，按以下优先级选取模块：
+# 只检测指定模块
+py -3 "${CLAUDE_SKILL_DIR}/scripts/capability_gap.py" -m base_codec
 
-1. **判决为"核心基石"的模块** — 全部入选（这些是底层基石，deep 分析价值最高）
-2. **判决为"提纯合并"的模块** — 全部入选（即将整合，需要精确了解内部质量）
-3. **判决为"重塑提取"且代码体量前 30% 的模块** — 体量大的重塑模块值得深入
-4. **"彻底淘汰"模块** — 不入选（无 deep 分析价值）
+# 自定义输出路径
+py -3 "${CLAUDE_SKILL_DIR}/scripts/capability_gap.py" -o report.md
 
-**数量上限**：单次 deep 分析不超过 **20 个模块**。超出时按上述优先级截断，并告知用户可用 `--modules` 指定其余模块。
-
-#### deep 分析输出格式（追加到已有 .md 末尾）
-
-```markdown
-## Deep 级深度分析
-
-### 精读文件清单
-1. `path/to/file.cpp` — 简述为什么选这个文件
-2. `path/to/file.h` — ...
-（5-10 个文件）
-
-### 线程安全评估
-- **锁策略**: ...
-- **竞态风险**: ...
-- **异步模式**: ...
-
-### 内存管理评估
-- **智能指针使用**: ...
-- **裸指针残留**: ...
-- **泄漏风险**: ...
-
-### 错误处理评估
-- **异常/错误码一致性**: ...
-- **静默吞异常**: ...
-
-### API 设计一致性
-- **命名规范**: ...
-- **参数风格**: ...
-- **返回值约定**: ...
-
-### Deep 级补充发现
-1. （standard 级未发现的重要问题）
-2. ...
+# 使用自定义配置（添加新模块映射）
+py -3 "${CLAUDE_SKILL_DIR}/scripts/capability_gap.py" --config config.json
 ```
 
-#### 并行执行策略
+**检测三类差异**：
 
-对于多个 deep 目标模块，使用 Agent 工具并行处理：
-- 按关联度分组（如同一子项目下的模块分到一组）
-- 每组 3-5 个模块，启动一个 Agent
-- 最多同时 3-4 个 Agent 并行
-- 每个 Agent 独立读取源码、独立写入对应 .md 文件
+| 类型 | 标签 | 含义 | 处理方式 |
+|------|------|------|---------|
+| 新文件 | `[MANDATORY-IMPORT]` | 候选有但 hbcore 没有的文件 | 必须导入或明确决定不导入 |
+| API 差异 | `[MANDATORY-EVAL]` | 同名文件但候选有新的 class/function/enum | 必须评估合并 |
+| 实现差异 | `[EVAL-IMPL]` | 同名文件 API 相同但实现不同 | 检测关键模式（atomic/智能指针/错误处理等），按改进方向决定 |
+
+**实现差异检测的关键模式**：
+- `std::atomic` vs `volatile`（线程安全升级）
+- 智能指针 vs 裸指针（内存安全）
+- mutex/lock_guard 使用变化
+- 硬件加速帧（av_hwframe）使用
+- FFmpeg 资源释放完整性
+- 错误检查密度
+
+**输出**：Markdown 报告，末尾包含 `MANDATORY 整合清单` 章节，可直接用于 repo-refactor 的 codex-brief。
+
+**添加新模块映射**：编辑脚本中的 `DEFAULT_MODULES` 字典，或提供 `--config` JSON 文件：
+
+```json
+{
+  "hbcore_root": "D:\\prjs\\hbcore",
+  "modules": {
+    "output_rtmp": {
+      "hbcore_dir": "output_rtmp/cpp",
+      "candidates": ["D:\\projects\\rtmp\\rtmp_encoder_sdk\\rtmp_enc"]
+    }
+  }
+}
+```
 
 ---
 
@@ -228,10 +210,52 @@ python "${CLAUDE_SKILL_DIR}/scripts/pre-scan.py" "$ARGUMENTS" -o "$ARGUMENTS/rep
 1. **读取 `index.md`**：获取子项目列表和轻量汇总
 2. **逐个处理子项目**：每次只对一个子聚合体做完整三段式分析（资产总览树 → 模块级描述 → 资产定级表）
 3. **将每个子项目的分析结果写入对应的 `{子项目}.md`**（追加到预扫描数据之后）
-4. **Step 2.5 — 全局交叉审阅**（所有子项目处理完后必须执行，见下节）
-5. **最终更新顶层 `index.md`**：在汇总表中补充各子项目的判决定级，并追加交叉审阅章节
+4. **中间级交叉审阅**（见下方说明）
+5. **Step 2.5 — 顶层全局交叉审阅**（所有子项目处理完后必须执行，见下节）
+6. **最终更新顶层 `index.md`**：在汇总表中补充各子项目的判决定级，并追加交叉审阅章节
 
 **优势**：每个子项目的详细报告独立，AI 每次只需处理单个项目的上下文，避免超长报告超出处理能力。
+
+### 中间级交叉审阅
+
+当 scan-output 存在多级嵌套（如 `scan-output/live_service/index.md` 下有 25 个子项目），中间级 index.md 也需要交叉审阅，否则中间级页面只有子项目列表表格，缺乏分析价值。
+
+**执行时机**：当一个中间级目录下的所有子项目分析完成后，立即对该中间级执行交叉审阅。
+
+**写入位置**：追加到该中间级的 `index.md` 末尾，格式与顶层交叉审阅完全相同：
+
+```markdown
+---
+
+## 跨模块交叉审阅
+
+### 能力重叠地图
+| 能力域 | 重复模块 | 建议合并路径 |
+|---|---|---|
+（该子项目群内的能力重叠）
+
+### 依赖拓扑
+（该子项目群内的依赖层级）
+
+### 修正判决
+（基于交叉对比后的判决修正）
+
+### 重构行动优先级
+（该子项目群的重构顺序建议）
+
+## 审计总结
+
+### 项目整体画像
+（该分类的整体概述）
+
+### 关键风险
+（该分类内的主要风险）
+
+### 优先行动建议
+（该分类的行动建议）
+```
+
+**注意**：中间级交叉审阅的范围限于该分类内部。跨分类的全局交叉审阅在 Step 2.5 中处理。
 
 ---
 
@@ -372,23 +396,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/gen_html.py" "$ARGUMENTS/scan-output/index.m
 4. 输出自包含 HTML 到报告同目录下 `report.html`
 5. `--open` 参数自动用系统浏览器打开
 
-**deep 增量模式的 HTML 重新生成**：
-
-deep 分析完成后，只需重新生成受影响模块的 HTML + 其父级 index.html：
-```bash
-# 重新生成被 deep 分析的模块页面
-python "${CLAUDE_SKILL_DIR}/scripts/gen_html.py" "scan-output/live_service/hbs_28181_streaming/index.md"
-# 重新生成父级 index（更新 DEEP 徽章和 verdict 数据）
-python "${CLAUDE_SKILL_DIR}/scripts/gen_html.py" "scan-output/live_service/index.md"
-# 重新生成顶级 index
-python "${CLAUDE_SKILL_DIR}/scripts/gen_html.py" "scan-output/index.md" --open
-```
-
-HTML 模板的 deep 相关特性：
-- **页面标题徽章**：含 deep 分析的页面标题显示紫色 `DEEP` 徽章
-- **项目卡片徽章**：子项目列表中，有 deep 分析的项目名称后显示 `DEEP ×N`（N 为 deep 模块数）
-- **独立 DEEP 章节**：紫色左边框 + 渐变标题，与 standard 内容明确区分
-- **verdict 聚合**：子目录 index 页面自动从子模块 .md 中聚合判决分布数据
+> deep 增量模式的 HTML 重新生成规则见 `deep-mode.md`。
 
 ### markdown 报告格式要求（供脚本解析）
 

@@ -275,7 +275,7 @@ function renderProjects() {
     var deepTag = p.hasDeep ? ' <span class="deep-badge" style="font-size:10px;vertical-align:middle">DEEP' + (p.deepCount > 1 ? ' ×' + p.deepCount : '') + '</span>' : '';
     return (hasLink ? '<a class="project-card" href="'+href+'">' : '<div class="project-card">') +
       '<div class="proj-name">'+p.name+deepTag+'</div>'+
-      '<div class="proj-meta">'+(p.buildSystem||'')+(p.files?' &nbsp;·&nbsp; '+p.files+' 文件':'')+(p.size?' &nbsp;·&nbsp; '+p.size:'')+'</div>'+
+      '<div class="proj-meta">'+(p.buildSystem||'')+(p.files?' &nbsp;·&nbsp; '+p.files+' 文件':'')+(p.size?' &nbsp;·&nbsp; '+p.size:'')+(p.lastModified && p.lastModified!=='-' ? ' &nbsp;·&nbsp; <span style="color:var(--accent)">'+p.lastModified+'</span>':'')+'</div>'+
       (stackTags ? '<div class="proj-tags">'+stackTags+'</div>' : '')+
       (total > 0 ? '<div class="verdict-bar-wrap"><div class="verdict-bar-label">模块判决分布</div>'+
         '<div class="verdict-bar">'+barHtml+'</div>'+
@@ -355,6 +355,14 @@ function renderDeep() {
     items.forEach(function(item) { h += '<li>' + item + '</li>'; });
     h += '</ul></div>';
   });
+  var vr = d.verdictRevision;
+  if (vr && vr.length) {
+    h += '<div class="deep-subsection" style="border:1px solid var(--red);border-radius:8px;padding:16px;background:rgba(248,81,73,0.05)">';
+    h += '<h4 style="color:var(--red);border-bottom-color:var(--red)"><span class="deep-badge" style="border-color:var(--red);color:var(--red);background:rgba(248,81,73,0.15)">REVISED</span>判决修正</h4>';
+    h += '<ul>';
+    vr.forEach(function(item) { h += '<li>' + item + '</li>'; });
+    h += '</ul></div>';
+  }
   document.getElementById('deepBody').innerHTML = h;
 }
 
@@ -364,7 +372,8 @@ function renderCross() {
   var revisions = REPORT.revisions || [];
   var actions   = REPORT.actions   || [];
 
-  if (!overlaps.length && !topology.length && !revisions.length && !actions.length) return;
+  var bugs = REPORT.bugs || [];
+  if (!overlaps.length && !topology.length && !revisions.length && !actions.length && !bugs.length) return;
   document.getElementById('crossSection').style.display = '';
 
   var h = '';
@@ -413,6 +422,17 @@ function renderCross() {
       return '<li><span class="action-num">'+(i+1)+'</span><span>'+a+'</span></li>';
     }).join('');
     h += '</ol>';
+  }
+
+  var bugs = REPORT.bugs || [];
+  if (bugs.length) {
+    h += '<h4>共性Bug模式（Deep分析发现）</h4>';
+    h += '<table class="cross-table"><thead><tr><th>Bug模式</th><th>涉及模块</th><th>风险等级</th><th>说明</th></tr></thead><tbody>';
+    h += bugs.map(function(b){
+      var sevColor = b.severity.indexOf('高')>=0?'var(--red)':b.severity.indexOf('中')>=0?'var(--yellow)':'var(--text-dim)';
+      return '<tr><td><strong>'+b.pattern+'</strong></td><td>'+b.modules+'</td><td style="color:'+sevColor+';font-weight:600">'+b.severity+'</td><td>'+b.note+'</td></tr>';
+    }).join('');
+    h += '</tbody></table>';
   }
 
   var risks = REPORT.risks || [];
