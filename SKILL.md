@@ -129,13 +129,22 @@ py -3 "${CLAUDE_SKILL_DIR}/scripts/capability_gap.py" --config config.json
 | API 差异 | `[MANDATORY-EVAL]` | 同名文件但候选有新的 class/function/enum | 必须评估合并 |
 | 实现差异 | `[EVAL-IMPL]` | 同名文件 API 相同但实现不同 | 检测关键模式（atomic/智能指针/错误处理等），按改进方向决定 |
 
-**实现差异检测的关键模式**：
-- `std::atomic` vs `volatile`（线程安全升级）
-- 智能指针 vs 裸指针（内存安全）
-- mutex/lock_guard 使用变化
-- 硬件加速帧（av_hwframe）使用
-- FFmpeg 资源释放完整性
-- 错误检查密度
+**实现差异检测的关键模式**（按语言适用）：
+
+| 模式 | 适用语言 | 说明 |
+|------|---------|------|
+| `std::atomic` vs `volatile` | C/C++ | 线程安全升级 |
+| 智能指针 vs 裸指针 | C/C++ | 内存安全 |
+| mutex/lock_guard 使用变化 | C/C++ | 并发模式 |
+| 硬件加速帧（av_hwframe） | C/C++ | FFmpeg 硬件加速 |
+| FFmpeg 资源释放完整性 | C/C++ | 资源泄漏 |
+| `synchronized` vs `ReentrantLock` vs 协程 | Java/Kotlin | 并发模式演进 |
+| `@MainThread` / `Dispatchers` 使用 | Kotlin | 线程调度 |
+| `weak`/`unowned` vs `strong` 引用 | Swift/ObjC | 循环引用 |
+| `async/await` vs callback | Swift/JS/TS/Kotlin | 异步模式演进 |
+| 错误处理（try-catch/Result/Optional） | 所有语言 | 错误检查密度 |
+| channel vs mutex | Go/Rust | 并发模式 |
+| `unsafe` 块使用 | Rust | 内存安全边界 |
 
 **输出**：Markdown 报告，末尾包含 `MANDATORY 整合清单` 章节，可直接用于 repo-refactor 的 codex-brief。
 

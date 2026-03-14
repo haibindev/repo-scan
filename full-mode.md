@@ -7,7 +7,7 @@
 `full` 是最高精度级别，比 `deep` 更进一步：
 - **全文件覆盖**：模块内每一个源码文件均被读取和分析，不做抽样
 - **横向对比**：跨文件检测功能相似性（不同文件名但实现相似功能的代码）
-- **.h/.cpp 配对**：C/C++ 文件按 header+implementation 成对分析，不割裂
+- **源码配对**：按语言惯例将关联文件成组分析（如 C/C++ 的 .h/.cpp、ObjC 的 .h/.m、Java 的接口/实现类等），不割裂
 
 **适用场景**：
 - 整合前的全面摸底（确保不遗漏任何能力）
@@ -28,37 +28,48 @@ full 是独立的完整分析模式，**不依赖 standard 或 deep 的前置结
 
 ---
 
-## .h/.cpp 配对规则（C/C++ 专用，全级别通用但 full 强制执行）
+## 源码配对规则（按语言分组，full 强制执行）
 
-### 配对识别
+分析时必须将关联文件作为**配对单元**（pair unit）一起读取，避免割裂接口与实现。
 
-对 C/C++ 源码，以下文件视为**配对单元**（pair unit），分析时必须一起读取：
+### 各语言配对规则
 
-| 头文件 | 实现文件 | 配对名 |
-|--------|---------|--------|
-| `foo.h` | `foo.cpp` | `foo` |
-| `foo.h` | `foo.cc` | `foo` |
-| `foo.hpp` | `foo.cpp` | `foo` |
-| `foo.h` | `foo_impl.cpp` | `foo` |
-| `foo.h` | `foo_win.cpp` / `foo_linux.cpp` | `foo`（平台变体） |
+| 语言 | 接口文件 | 实现文件 | 配对名 |
+|------|---------|---------|--------|
+| **C/C++** | `foo.h` / `foo.hpp` | `foo.cpp` / `foo.cc` / `foo_impl.cpp` | `foo` |
+| **C/C++** | `foo.h` | `foo_win.cpp` / `foo_linux.cpp` | `foo`（平台变体） |
+| **ObjC** | `Foo.h` | `Foo.m` / `Foo.mm` | `Foo` |
+| **Swift** | `FooProtocol.swift` | `Foo.swift` | `Foo`（协议+实现） |
+| **Java/Kotlin** | `IFoo.java` / `Foo.kt`(interface) | `FooImpl.java` / `FooImpl.kt` | `Foo`（接口+实现） |
+| **Go** | — | 同 package 下所有 `.go` 文件 | package 名 |
+| **Rust** | `mod.rs` / `lib.rs` | 同 module 下 `.rs` 文件 | module 名 |
+| **Python** | `__init__.py` | 同 package 下 `.py` 文件 | package 名 |
+| **TypeScript** | `types.ts` / `index.ts` | 同目录 `.ts`/`.tsx` 文件 | 目录名 |
+| **C#** | `IFoo.cs` (interface) | `Foo.cs` | `Foo` |
 
-**规则**：
-1. **同名优先**：`foo.h` 和 `foo.cpp` 同目录或 `include/` vs `src/` 目录关系
-2. **前缀/后缀容忍**：`foo.h` + `foo_impl.cpp`、`foo.h` + `foo_platform.cpp` 视为配对
-3. **无实现文件的头文件**：header-only 模式，单独作为一个分析单元
-4. **无头文件的实现文件**：可能是入口（main.cpp）或内部实现，单独标注
+**通用规则**：
+1. **同名优先**：同名的接口文件和实现文件优先配对
+2. **前缀/后缀容忍**：`foo.h` + `foo_impl.cpp`、`IFoo.java` + `FooImpl.java` 视为配对
+3. **无实现的接口文件**：header-only / 纯接口，单独作为一个分析单元
+4. **无接口的实现文件**：可能是入口（main.*）或内部实现，单独标注
+5. **包/模块级分组**：Go/Rust/Python 等按 package/module 分组，整个包作为一个分析单元
 
 ### 配对分析要求
 
-- 读取配对单元时，**先读 .h 再读 .cpp**（头文件定义接口契约，实现文件验证实现质量）
+- 读取配对单元时，**先读接口后读实现**（接口定义契约，实现验证质量）
 - 分析输出中，配对单元写在一起：
   ```markdown
-  #### foo.h / foo.cpp — 网络传输层
+  #### foo.h / foo.cpp — 网络传输层（C++）
   - **接口**（foo.h）：class TcpTransport，公开方法 Connect/Send/Recv/Close
   - **实现**（foo.cpp）：基于 IOCP，异步 IO，线程池大小可配
   - **质量**：RAII 资源管理，无裸指针泄漏
+
+  #### UserService.kt（Kotlin）
+  - **接口**：interface IUserService，方法 login/logout/getProfile
+  - **实现**：UserServiceImpl，基于 Retrofit + Room
+  - **质量**：协程使用规范，无回调地狱
   ```
-- 横向对比时，配对单元作为整体参与对比（不拆开 .h 和 .cpp 分别对比）
+- 横向对比时，配对单元作为整体参与对比（不拆开接口和实现分别对比）
 
 ---
 
@@ -76,12 +87,12 @@ full 是独立的完整分析模式，**不依赖 standard 或 deep 的前置结
 │
 ├─ Step F1：全文件枚举与配对
 │   ├─ 用 Glob 列出模块目录下所有源码文件（排除三方库和构建产物）
-│   ├─ 按 .h/.cpp 配对规则生成配对单元列表
-│   └─ 输出文件清单：总文件数、配对单元数
+│   ├─ 检测项目语言，按对应配对规则生成配对单元列表
+│   └─ 输出文件清单：总文件数、配对单元数、语言分布
 │
 ├─ Step F2：全量精读（按配对单元逐个读取）
 │   ├─ 对每个配对单元（或独立文件）：
-│   │   ├─ 用 Read 工具读取（先 .h 后 .cpp）
+│   │   ├─ 用 Read 工具读取（先接口后实现）
 │   │   ├─ 分析：类/函数清单、依赖关系、质量问题
 │   │   └─ 记录该单元的功能摘要（用于 Step F3 横向对比）
 │   └─ 所有文件均完整读取和分析，无抽样
@@ -183,8 +194,9 @@ full 是独立的完整分析模式，**不依赖 standard 或 deep 的前置结
 
 ### 文件覆盖统计
 - 总源码文件数：N
-- 配对单元数：M（.h/.cpp 配对）
-- 独立文件数：K（无配对的头文件或实现文件）
+- 配对单元数：M（接口/实现配对）
+- 独立文件数：K（无配对的接口或实现文件）
+- 语言分布：C++ X 个, Java Y 个, ...
 
 ### 全文件清单与分析
 
