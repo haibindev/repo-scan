@@ -116,6 +116,21 @@
   .deep-files li { color: var(--text-dim); margin-bottom: 4px; }
   .deep-files code { color: var(--accent); }
 
+  /* ── 双扫描交叉验证（简要摘要，详情见 dual-scan.html） ── */
+  .dual-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700;
+                background: linear-gradient(135deg, rgba(63,185,80,0.2), rgba(88,166,255,0.2));
+                border: 1px solid var(--green); color: var(--green); letter-spacing: 1px; margin-right: 8px; }
+  .dual-summary-card { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }
+  .dual-summary-stat { padding: 12px 20px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); text-align: center; }
+  .dual-summary-stat .ds-val { font-size: 22px; font-weight: 700; }
+  .dual-summary-stat .ds-lbl { font-size: 11px; color: var(--text-dim); }
+  .dual-open-link { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px;
+    background: linear-gradient(135deg, rgba(63,185,80,0.08), rgba(88,166,255,0.08));
+    border: 1px solid var(--green); color: var(--green); text-decoration: none;
+    font-size: 14px; font-weight: 600; transition: all 0.2s; margin-top: 8px; }
+  .dual-open-link:hover { background: linear-gradient(135deg, rgba(63,185,80,0.15), rgba(88,166,255,0.15));
+    box-shadow: 0 0 0 3px rgba(63,185,80,0.1); }
+
   /* ── 总结 ── */
   .summary h3 { font-size: 16px; margin-bottom: 12px; color: var(--accent); }
   .summary ul { padding-left: 20px; margin-bottom: 16px; }
@@ -185,6 +200,13 @@
     <div class="section-body" id="crossBody"></div>
   </div>
 
+  <div class="section" id="dualScanSection" style="display:none">
+    <div class="section-header" onclick="toggleSection(this)" style="border-left: 3px solid var(--green);">
+      <h2><span style="background:linear-gradient(135deg,var(--green),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DUAL</span> 双扫描交叉验证</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body" id="dualScanBody"></div>
+  </div>
+
   <div class="section" id="summarySection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)">
       <h2>审计总结</h2><span class="toggle">&#9660;</span>
@@ -200,7 +222,8 @@ const REPORT = {};
 
 function init() {
   document.getElementById('reportTitle').innerHTML = (REPORT.title || '源码资产总览') +
-    (REPORT.hasDeep ? ' <span class="deep-badge" style="font-size:13px;vertical-align:middle">DEEP</span>' : '');
+    (REPORT.hasDeep ? ' <span class="deep-badge" style="font-size:13px;vertical-align:middle">DEEP</span>' : '') +
+    (REPORT.hasDualScan ? ' <span class="dual-badge" style="font-size:13px;vertical-align:middle">DUAL</span>' : '');
   document.getElementById('scanTarget').textContent = '目标路径: ' + (REPORT.target || '—');
   document.getElementById('scanDate').textContent = '扫描日期: ' + (REPORT.date || '—');
   if (REPORT.desc) document.getElementById('scanDesc').textContent = REPORT.desc;
@@ -210,6 +233,7 @@ function init() {
   renderModules();
   renderTriage();
   renderDeep();
+  renderDualScan();
   renderCross();
   renderSummary();
 }
@@ -458,6 +482,36 @@ function renderSummary() {
   if (s.risks)   { h += '<h3 style="color:var(--red)">关键风险</h3><ul>'+s.risks.map(function(r){return '<li class="risk">'+r+'</li>';}).join('')+'</ul>'; }
   if (s.actions) { h += '<h3 style="color:var(--green)">优先行动建议</h3><ul>'+s.actions.map(function(a){return '<li class="action">'+a+'</li>';}).join('')+'</ul>'; }
   document.getElementById('summaryBody').innerHTML = h;
+}
+
+function renderDualScan() {
+  var ds = REPORT.dualScan;
+  if (!ds) return;
+  document.getElementById('dualScanSection').style.display = '';
+  var h = '';
+  var comps = ds.comparisons || [];
+  var details = ds.moduleDetails || [];
+  var agreeCount = 0, disagreeCount = 0;
+  (details.length ? details : comps).forEach(function(d) { d.agree ? agreeCount++ : disagreeCount++; });
+  var total = agreeCount + disagreeCount;
+
+  // ── Quick stats ──
+  h += '<div class="dual-summary-card">';
+  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--accent)">' + total + '</div><div class="ds-lbl">验证模块数</div></div>';
+  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--green)">' + agreeCount + '</div><div class="ds-lbl">判决一致</div></div>';
+  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--red)">' + disagreeCount + '</div><div class="ds-lbl">判决分歧</div></div>';
+  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--yellow)">' + (ds.agreeRate || '—') + '</div><div class="ds-lbl">一致率</div></div>';
+  h += '</div>';
+
+  if (ds.systemicFinding) {
+    h += '<div style="padding:12px 16px;border-radius:8px;border:1px solid var(--yellow);background:rgba(210,153,34,0.06);margin-bottom:16px;font-size:13px;line-height:1.6">';
+    h += '<strong style="color:var(--yellow)">&#9888; 系统性发现：</strong>' + ds.systemicFinding + '</div>';
+  }
+
+  h += '<p style="font-size:13px;color:var(--text-dim);margin-bottom:16px">双扫描交叉验证的完整对比报告（含每模块 Agent-1 vs Agent-2 逐项分析）已独立为专用页面。</p>';
+  h += '<a class="dual-open-link" href="dual-scan.html">&#9878; 打开完整双扫描对比报告 &rarr;</a>';
+
+  document.getElementById('dualScanBody').innerHTML = h;
 }
 
 function verdictClass(v) {

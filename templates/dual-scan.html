@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双扫描交叉验证报告</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --yellow: #d29922; --red: #f85149; --purple: #bc8cff;
+    --a1: #58a6ff; --a2: #3fb950; --human: #f0883e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+         background: var(--bg); color: var(--text); line-height: 1.6; }
+  .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+
+  /* ── Header ── */
+  .header { text-align: center; padding: 40px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+  .header h1 { font-size: 26px; font-weight: 600; margin-bottom: 8px; }
+  .header h1 .dual-badge { display: inline-block; padding: 3px 14px; border-radius: 12px; font-size: 13px;
+    font-weight: 700; background: linear-gradient(135deg, rgba(63,185,80,0.2), rgba(88,166,255,0.2));
+    border: 1px solid var(--green); color: var(--green); letter-spacing: 1px; vertical-align: middle; margin-left: 8px; }
+  .header .meta { color: var(--text-dim); font-size: 14px; margin-top: 6px; }
+  .back-link { display: inline-block; margin-bottom: 16px; color: var(--accent); text-decoration: none; font-size: 13px; }
+  .back-link:hover { text-decoration: underline; }
+
+  /* ── Agent identity cards ── */
+  .agents-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .agent-card { padding: 20px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); }
+  .agent-card.a1 { border-top: 3px solid var(--a1); }
+  .agent-card.a2 { border-top: 3px solid var(--a2); }
+  .agent-card .agent-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin-bottom: 6px; }
+  .agent-card.a1 .agent-tag { color: var(--a1); }
+  .agent-card.a2 .agent-tag { color: var(--a2); }
+  .agent-card .agent-name { font-size: 18px; font-weight: 700; }
+  .agent-card .agent-role { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+
+  /* ── Stats grid ── */
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+  .stat-box .val { font-size: 26px; font-weight: 700; }
+  .stat-box .lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+  /* ── Systemic finding ── */
+  .systemic { padding: 14px 18px; border-radius: 8px; border: 1px solid var(--yellow); background: rgba(210,153,34,0.06);
+    margin-bottom: 20px; font-size: 13px; line-height: 1.6; }
+  .systemic strong { color: var(--yellow); }
+
+  /* ── Verdict distribution bar ── */
+  .corrected-bar { display: flex; height: 36px; border-radius: 8px; overflow: hidden; gap: 2px; margin: 12px 0; }
+  .corrected-bar > div { display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; }
+  .change-pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 24px; }
+  .change-pill { display: inline-block; padding: 3px 12px; border-radius: 14px; font-size: 12px; font-weight: 600; }
+  .change-down { background: rgba(248,81,73,0.1); color: var(--red); border: 1px solid rgba(248,81,73,0.2); }
+  .change-up { background: rgba(63,185,80,0.1); color: var(--green); border: 1px solid rgba(63,185,80,0.2); }
+
+  /* ── Toolbar (human review) ── */
+  .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--border); margin-bottom: 20px; }
+  .toolbar .tb-label { font-size: 13px; font-weight: 600; color: var(--human); }
+  .toolbar .tb-progress { flex: 1; min-width: 120px; }
+  .toolbar .tb-progress-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: 4px; }
+  .toolbar .tb-progress-fill { height: 100%; background: var(--human); border-radius: 3px; transition: width 0.3s; }
+  .toolbar .tb-progress-text { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .tb-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg);
+    color: var(--text-dim); font-size: 12px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px; }
+  .tb-btn:hover { border-color: var(--human); color: var(--human); }
+  .tb-btn.tb-primary { border-color: var(--human); color: var(--human); background: rgba(240,136,62,0.08); }
+  .tb-btn.tb-danger { border-color: var(--red); color: var(--red); }
+  .tb-btn.tb-danger:hover { background: rgba(248,81,73,0.08); }
+  .tb-sep { width: 1px; height: 24px; background: var(--border); }
+
+  /* ── Filter bar ── */
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+  .filter-bar .label { font-size: 12px; color: var(--text-dim); margin-right: 4px; }
+  .filter-btn { padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-dim); font-size: 13px; cursor: pointer; transition: all 0.15s; }
+  .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+  .filter-btn.active { background: rgba(88,166,255,0.1); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .search-input { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg);
+    color: var(--text); font-size: 13px; width: 200px; outline: none; }
+  .search-input:focus { border-color: var(--accent); }
+
+  /* ── Module comparison cards ── */
+  .dm-card { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; background: var(--surface);
+    overflow: hidden; transition: border-color 0.2s; }
+  .dm-card:hover { border-color: #444c56; }
+  .dm-card.dm-disagree { border-left: 3px solid var(--red); }
+  .dm-card.dm-agree { border-left: 3px solid var(--green); }
+  .dm-card.dm-reviewed { border-color: var(--human); }
+  .dm-card.dm-reviewed .dm-header { background: rgba(240,136,62,0.03); }
+
+  .dm-header { display: flex; align-items: center; padding: 14px 18px; cursor: pointer; user-select: none;
+    gap: 12px; transition: background 0.15s; }
+  .dm-header:hover { background: rgba(88,166,255,0.03); }
+
+  .dm-header-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .dm-agree-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .dm-module-name { font-size: 16px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .dm-subtitle { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dm-reviewed-tag { font-size: 10px; padding: 1px 7px; border-radius: 8px; font-weight: 700;
+    background: rgba(240,136,62,0.12); color: var(--human); border: 1px solid rgba(240,136,62,0.3); white-space: nowrap; }
+  .dm-overridden-tag { font-size: 10px; padding: 1px 7px; border-radius: 8px; font-weight: 700;
+    background: rgba(240,136,62,0.2); color: var(--human); border: 1px solid rgba(240,136,62,0.4); white-space: nowrap; }
+
+  .dm-header-verdicts { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .dm-verdict-pill { font-size: 11px; padding: 2px 10px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+  .dm-verdict-pill.verdict-core { background: rgba(63,185,80,0.1); color: var(--green); border: 1px solid rgba(63,185,80,0.25); }
+  .dm-verdict-pill.verdict-merge { background: rgba(210,153,34,0.1); color: var(--yellow); border: 1px solid rgba(210,153,34,0.25); }
+  .dm-verdict-pill.verdict-rebuild { background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid rgba(188,140,255,0.25); }
+  .dm-verdict-pill.verdict-retire { background: rgba(248,81,73,0.1); color: var(--red); border: 1px solid rgba(248,81,73,0.25); }
+  .dm-final { font-weight: 800; font-size: 12px; }
+
+  .dm-toggle { color: var(--text-dim); font-size: 14px; transition: transform 0.2s; margin-left: 8px; }
+  .dm-card.dm-open .dm-toggle { transform: rotate(180deg); }
+
+  .dm-body { display: none; border-top: 1px solid var(--border); padding: 0; }
+  .dm-card.dm-open .dm-body { display: block; }
+
+  /* ── Two-column layout ── */
+  .dm-columns { display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+  .dm-col { padding: 18px 20px; }
+  .dm-col-a1 { border-right: 1px solid var(--border); }
+  .dm-col-header { font-size: 13px; font-weight: 700; margin-bottom: 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .tag-a1 { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 700;
+    background: rgba(88,166,255,0.12); color: var(--a1); border: 1px solid rgba(88,166,255,0.25); }
+  .tag-a2 { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 700;
+    background: rgba(63,185,80,0.12); color: var(--a2); border: 1px solid rgba(63,185,80,0.25); }
+
+  .dm-field { margin-bottom: 12px; font-size: 13px; line-height: 1.6; }
+  .dm-field-label { display: block; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 3px; font-weight: 600; }
+
+  .dm-findings-list { padding-left: 18px; margin: 4px 0 12px; font-size: 13px; line-height: 1.7; }
+  .dm-findings-list li { margin-bottom: 4px; }
+  .dm-findings-list.dm-numbered { list-style: decimal; }
+
+  /* ── Dispute resolution ── */
+  .dm-dispute { border-top: 1px solid var(--border); padding: 16px 20px; background: rgba(248,81,73,0.02); }
+  .dm-dispute-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .dm-dispute-items { padding-left: 18px; margin-bottom: 10px; font-size: 13px; line-height: 1.6; }
+  .dm-dispute-items li { margin-bottom: 4px; }
+  .dispute-source { font-size: 11px; color: var(--text-dim); padding: 2px 8px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface); }
+  .dispute-reason { font-size: 12px; color: var(--text-dim); padding: 10px 14px; border-left: 3px solid var(--yellow);
+    background: rgba(210,153,34,0.05); border-radius: 0 6px 6px 0; line-height: 1.6; }
+  .tag-both { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;
+    background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); margin-right: 4px; }
+  .tag-agent1 { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;
+    background: rgba(88,166,255,0.1); color: var(--a1); border: 1px solid rgba(88,166,255,0.2); margin-right: 4px; }
+  .tag-agent2 { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;
+    background: rgba(63,185,80,0.1); color: var(--a2); border: 1px solid rgba(63,185,80,0.2); margin-right: 4px; }
+
+  /* ── Human review panel ── */
+  .dm-human { border-top: 1px solid rgba(240,136,62,0.3); padding: 16px 20px;
+    background: rgba(240,136,62,0.03); }
+  .dm-human-title { font-size: 13px; font-weight: 700; color: var(--human); margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px; }
+  .dm-human-row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .dm-human-field { display: flex; flex-direction: column; gap: 4px; }
+  .dm-human-field label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .dm-human-field select { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg);
+    color: var(--text); font-size: 13px; outline: none; cursor: pointer; min-width: 140px; }
+  .dm-human-field select:focus { border-color: var(--human); }
+  .dm-human-field select option { background: var(--bg); color: var(--text); }
+  .dm-human-note { flex: 1; min-width: 300px; }
+  .dm-human-note textarea { width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit; resize: vertical;
+    min-height: 60px; outline: none; line-height: 1.5; }
+  .dm-human-note textarea:focus { border-color: var(--human); }
+  .dm-human-actions { display: flex; align-items: flex-end; gap: 8px; }
+  .dm-review-btn { padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.15s;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text-dim); }
+  .dm-review-btn:hover { border-color: var(--human); color: var(--human); }
+  .dm-review-btn.checked { border-color: var(--human); color: var(--human); background: rgba(240,136,62,0.1); font-weight: 600; }
+
+  /* ── Unique findings section ── */
+  .section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-top: 28px; overflow: hidden; }
+  .section-header { padding: 16px 20px; border-bottom: 1px solid var(--border); cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center; user-select: none; }
+  .section-header h2 { font-size: 17px; font-weight: 600; }
+  .section-header .toggle { color: var(--text-dim); font-size: 18px; transition: transform 0.2s; }
+  .section.collapsed .section-body { display: none; }
+  .section.collapsed .toggle { transform: rotate(-90deg); }
+  .section-body { padding: 20px; }
+
+  .unique-finding { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px;
+    display: flex; gap: 10px; align-items: flex-start; line-height: 1.6; }
+  .unique-finding:last-child { border-bottom: none; }
+  .unique-module { font-weight: 600; color: var(--accent); white-space: nowrap; min-width: 140px; }
+
+  /* ── Summary comparison table ── */
+  .comp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .comp-table th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border);
+    color: var(--text-dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .comp-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .comp-table tr:hover { background: rgba(88,166,255,0.04); }
+  .comp-table .mod-name { font-weight: 600; color: var(--accent); }
+  .agree-yes { color: var(--green); font-weight: 600; }
+  .agree-no { color: var(--red); font-weight: 600; }
+  .verdict-core { color: var(--green); font-weight: 600; }
+  .verdict-merge { color: var(--yellow); font-weight: 600; }
+  .verdict-rebuild { color: var(--purple); font-weight: 600; }
+  .verdict-retire { color: var(--red); font-weight: 600; }
+  .verdict-human { color: var(--human); font-weight: 700; }
+
+  /* ── Summary note ── */
+  .summary-note { padding: 14px 18px; border-radius: 8px; border-left: 3px solid var(--accent);
+    background: rgba(88,166,255,0.04); margin-top: 24px; font-size: 13px; line-height: 1.6; color: var(--text-dim); }
+
+  /* ── Toast notification ── */
+  .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--human); color: var(--human); font-size: 13px;
+    font-weight: 600; box-shadow: 0 4px 20px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.3s;
+    pointer-events: none; z-index: 100; }
+  .toast.show { opacity: 1; }
+
+  /* ── Import overlay ── */
+  .import-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50;
+    align-items: center; justify-content: center; }
+  .import-overlay.show { display: flex; }
+  .import-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; max-width: 500px; width: 90%; }
+  .import-box h3 { font-size: 16px; margin-bottom: 12px; }
+  .import-box p { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; }
+  .import-box .import-drop { border: 2px dashed var(--border); border-radius: 8px; padding: 32px; text-align: center;
+    color: var(--text-dim); font-size: 13px; cursor: pointer; transition: border-color 0.2s; }
+  .import-box .import-drop:hover { border-color: var(--human); }
+  .import-box .import-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  @media (max-width: 900px) {
+    .agents-row { grid-template-columns: 1fr; }
+    .dm-columns { grid-template-columns: 1fr; }
+    .dm-col-a1 { border-right: none; border-bottom: 1px solid var(--border); }
+    .dm-header-verdicts { flex-wrap: wrap; }
+    .dm-human-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <a class="back-link" id="backLink" href="index.html">&larr; 返回总览</a>
+
+  <div class="header">
+    <h1 id="reportTitle">双扫描交叉验证报告 <span class="dual-badge">DUAL</span></h1>
+    <div class="meta" id="reportMeta"></div>
+  </div>
+
+  <div class="agents-row" id="agentsRow"></div>
+  <div class="stats-row" id="statsRow"></div>
+  <div id="systemicBox"></div>
+  <div id="verdictBar"></div>
+  <div class="toolbar" id="toolbar"></div>
+  <div class="filter-bar" id="filterBar"></div>
+  <div id="moduleCards"></div>
+
+  <div class="section" id="uniqueSection" style="display:none">
+    <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+      <h2>Agent-2 独有发现</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body" id="uniqueBody"></div>
+  </div>
+
+  <div class="section" id="tableSection" style="display:none">
+    <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+      <h2>完整对比总表</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body" id="tableBody"></div>
+  </div>
+
+  <div id="summaryNote"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="import-overlay" id="importOverlay">
+  <div class="import-box">
+    <h3>导入人工决策</h3>
+    <p>选择之前导出的 <code>human-decisions.json</code> 文件，恢复所有审阅状态。</p>
+    <div class="import-drop" id="importDrop" onclick="document.getElementById('importFile').click()">
+      点击选择文件 或 拖拽到此处
+    </div>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="doImport(this)">
+    <div class="import-actions">
+      <button class="tb-btn" onclick="closeImport()">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// __REPORT_BEGIN__
+const REPORT = {};
+// __REPORT_END__
+
+// ═══════════════════════════════════════════════════════════
+// LocalStorage key (scoped by report target path)
+// ═══════════════════════════════════════════════════════════
+var LS_KEY = 'dual-scan-decisions:' + (REPORT.target || 'default');
+
+function loadDecisions() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e) { return {}; }
+}
+function saveDecisions(d) {
+  d._updatedAt = new Date().toISOString();
+  localStorage.setItem(LS_KEY, JSON.stringify(d));
+}
+function getModuleDecision(mod) {
+  var d = loadDecisions();
+  return (d.modules && d.modules[mod]) || {};
+}
+function setModuleDecision(mod, key, val) {
+  var d = loadDecisions();
+  if (!d.modules) d.modules = {};
+  if (!d.modules[mod]) d.modules[mod] = {};
+  d.modules[mod][key] = val;
+  saveDecisions(d);
+  updateToolbar();
+  updateCardTags(mod);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+function init() {
+  var ds = REPORT.dualScan;
+  if (!ds) { document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#8b949e">无双扫描数据</div>'; return; }
+
+  // Merge baked-in human decisions (from gen_html.py) into localStorage if not already present
+  if (REPORT.humanDecisions && REPORT.humanDecisions.modules) {
+    var existing = loadDecisions();
+    if (!existing.modules) existing.modules = {};
+    var baked = REPORT.humanDecisions.modules;
+    for (var bm in baked) {
+      if (!existing.modules[bm]) existing.modules[bm] = baked[bm];
+    }
+    saveDecisions(existing);
+  }
+
+  // Meta
+  var meta = [];
+  if (REPORT.target) meta.push('目标: ' + REPORT.target);
+  if (ds.date) meta.push('验证日期: ' + ds.date);
+  document.getElementById('reportMeta').textContent = meta.join(' | ');
+
+  var comps = ds.comparisons || [];
+  var details = ds.moduleDetails || [];
+  var agreeCount = 0, disagreeCount = 0;
+  details.forEach(function(d) { d.agree ? agreeCount++ : disagreeCount++; });
+  if (agreeCount === 0 && disagreeCount === 0) {
+    comps.forEach(function(c) { c.agree ? agreeCount++ : disagreeCount++; });
+  }
+
+  // ── Agent cards ──
+  var ah = '';
+  ah += '<div class="agent-card a1"><div class="agent-tag">Agent-1 &middot; 主扫描方</div>';
+  ah += '<div class="agent-name">' + esc(ds.agent1.name || 'Agent-1') + '</div>';
+  if (ds.agent1.role) ah += '<div class="agent-role">' + esc(ds.agent1.role) + '</div>';
+  ah += '</div>';
+  ah += '<div class="agent-card a2"><div class="agent-tag">Agent-2 &middot; 独立验证方</div>';
+  ah += '<div class="agent-name">' + esc(ds.agent2.name || 'Agent-2') + '</div>';
+  if (ds.agent2.role) ah += '<div class="agent-role">' + esc(ds.agent2.role) + '</div>';
+  ah += '</div>';
+  document.getElementById('agentsRow').innerHTML = ah;
+
+  // ── Stats ──
+  var total = details.length || comps.length;
+  var sh = '';
+  sh += statBox(total, '验证模块数', 'var(--accent)');
+  sh += statBox(agreeCount, '判决一致', 'var(--green)');
+  sh += statBox(disagreeCount, '判决分歧', 'var(--red)');
+  sh += statBox(ds.agreeRate || '—', '一致率', 'var(--yellow)');
+  if (ds.date) sh += statBox(ds.date, '验证日期', 'var(--text-dim)', '15px');
+  document.getElementById('statsRow').innerHTML = sh;
+
+  // ── Systemic finding ──
+  if (ds.systemicFinding) {
+    document.getElementById('systemicBox').innerHTML =
+      '<div class="systemic"><strong>&#9888; 系统性发现：</strong>' + ds.systemicFinding + '</div>';
+  }
+
+  // ── Verdict bar + change pills ──
+  var vh = '';
+  var corr = ds.correctedSummary || [];
+  var totalCorr = 0;
+  corr.forEach(function(c){ totalCorr += parseInt(c.count) || 0; });
+  if (totalCorr > 0) {
+    vh += '<div class="corrected-bar">';
+    corr.forEach(function(c) {
+      var n = parseInt(c.count) || 0;
+      if (!n) return;
+      var bg = {'core':'var(--green)','merge':'var(--yellow)','rebuild':'var(--purple)','retire':'var(--red)'}[vc(c.verdict)] || 'var(--text-dim)';
+      vh += '<div style="flex:'+n+';background:'+bg+'">'+c.verdict+' '+n+'</div>';
+    });
+    vh += '</div>';
+  }
+  var changes = ds.verdictChanges || [];
+  if (changes.length) {
+    vh += '<div class="change-pills">';
+    changes.forEach(function(c) {
+      var cls = c.indexOf('（-')>=0 ? 'change-down' : c.indexOf('（+')>=0 ? 'change-up' : '';
+      vh += '<span class="change-pill '+cls+'">'+c+'</span>';
+    });
+    vh += '</div>';
+  }
+  document.getElementById('verdictBar').innerHTML = vh;
+
+  // ── Toolbar ──
+  updateToolbar();
+
+  // ── Filter bar ──
+  var fh = '<span class="label">筛选：</span>';
+  fh += '<button class="filter-btn active" onclick="filterCards(\'all\',this)">全部 ('+total+')</button>';
+  fh += '<button class="filter-btn" onclick="filterCards(\'disagree\',this)">分歧 ('+disagreeCount+')</button>';
+  fh += '<button class="filter-btn" onclick="filterCards(\'agree\',this)">一致 ('+agreeCount+')</button>';
+  fh += '<button class="filter-btn" onclick="filterCards(\'reviewed\',this)">已审阅</button>';
+  fh += '<button class="filter-btn" onclick="filterCards(\'unreviewed\',this)">未审阅</button>';
+  fh += '<input type="text" class="search-input" placeholder="搜索模块名..." oninput="searchCards(this.value)">';
+  document.getElementById('filterBar').innerHTML = fh;
+
+  // ── Module cards ──
+  var mh = '';
+  details.forEach(function(md) {
+    var a1vc = vc(md.agent1Verdict), a2vc = vc(md.agent2Verdict), fvcc = vc(md.finalVerdict);
+    var isAgree = md.agree;
+    var dot = isAgree ? 'var(--green)' : 'var(--red)';
+    var dec = getModuleDecision(md.module);
+    var isReviewed = dec.reviewed;
+
+    mh += '<div class="dm-card '+(isAgree?'dm-agree':'dm-disagree')+(isReviewed?' dm-reviewed':'')+'" data-agree="'+(isAgree?'agree':'disagree')+'" data-name="'+md.module.toLowerCase()+'" data-module="'+esc(md.module)+'" id="card-'+esc(md.module)+'">';
+
+    // Header
+    mh += '<div class="dm-header" onclick="toggleCard(this)">';
+    mh += '<div class="dm-header-left">';
+    mh += '<span class="dm-agree-dot" style="background:'+dot+'"></span>';
+    mh += '<span class="dm-module-name">'+esc(md.module)+'</span>';
+    if (md.a1 && md.a1.subtitle) mh += '<span class="dm-subtitle">'+esc(md.a1.subtitle)+'</span>';
+    mh += '<span class="dm-reviewed-tag" id="rtag-'+esc(md.module)+'" style="display:'+(isReviewed?'inline':'none')+'">REVIEWED</span>';
+    mh += '<span class="dm-overridden-tag" id="otag-'+esc(md.module)+'" style="display:'+(dec.overrideVerdict?'inline':'none')+'">HUMAN</span>';
+    mh += '</div>';
+    mh += '<div class="dm-header-verdicts">';
+    mh += pill('A1: '+md.agent1Verdict, a1vc);
+    mh += isAgree ? '<span style="color:var(--green);margin:0 4px">=</span>' : '<span style="color:var(--red);font-weight:700;margin:0 4px">&ne;</span>';
+    mh += pill('A2: '+md.agent2Verdict, a2vc);
+    mh += '<span style="margin:0 8px;color:var(--text-dim)">&rarr;</span>';
+    mh += pill(md.finalVerdict, fvcc, true);
+    // Show human override pill if exists
+    if (dec.overrideVerdict) {
+      mh += '<span style="margin:0 4px;color:var(--human)">&rarr;</span>';
+      mh += '<span class="dm-verdict-pill" style="background:rgba(240,136,62,0.15);color:var(--human);border:1px solid rgba(240,136,62,0.35);font-weight:800" id="hpill-'+esc(md.module)+'">&#9998; '+dec.overrideVerdict+'</span>';
+    } else {
+      mh += '<span class="dm-verdict-pill" style="display:none;background:rgba(240,136,62,0.15);color:var(--human);border:1px solid rgba(240,136,62,0.35);font-weight:800" id="hpill-'+esc(md.module)+'"></span>';
+    }
+    mh += '</div>';
+    mh += '<span class="dm-toggle">&#9660;</span>';
+    mh += '</div>';
+
+    // Body
+    mh += '<div class="dm-body">';
+    mh += '<div class="dm-columns">';
+
+    // LEFT: Agent-1
+    mh += '<div class="dm-col dm-col-a1">';
+    mh += '<div class="dm-col-header"><span class="tag-a1">Agent-1</span> '+ esc(ds.agent1.name||'') +'</div>';
+    var a1 = md.a1 || {};
+    if (a1.codeSize) mh += field('代码体量', a1.codeSize);
+    if (a1.function) mh += field('功能矩阵', a1.function);
+    if (a1.coreClasses) mh += field('核心类', a1.coreClasses);
+    if (a1.deps) mh += field('依赖关系', a1.deps);
+    if (a1.thirdParty) mh += field('三方库', a1.thirdParty);
+    if (a1.qualityItems && a1.qualityItems.length) {
+      mh += '<div class="dm-field"><span class="dm-field-label">质量评估</span></div>';
+      mh += '<ul class="dm-findings-list">';
+      a1.qualityItems.forEach(function(q) { mh += '<li>'+q+'</li>'; });
+      mh += '</ul>';
+    }
+    mh += '</div>';
+
+    // RIGHT: Agent-2
+    mh += '<div class="dm-col dm-col-a2">';
+    mh += '<div class="dm-col-header"><span class="tag-a2">Agent-2</span> '+ esc(ds.agent2.name||'') +'</div>';
+    var a2 = md.a2 || {};
+    if (a2.verdictReason) mh += field('判决理由', a2.verdictReason);
+    if (a2.findings && a2.findings.length) {
+      mh += '<div class="dm-field"><span class="dm-field-label">关键发现</span></div>';
+      mh += '<ol class="dm-findings-list dm-numbered">';
+      a2.findings.forEach(function(f) { mh += '<li>'+f+'</li>'; });
+      mh += '</ol>';
+    }
+    if (a2.crossComparison && a2.crossComparison.length) {
+      mh += '<div class="dm-field"><span class="dm-field-label">横向对比</span></div>';
+      mh += '<ul class="dm-findings-list">';
+      a2.crossComparison.forEach(function(c) { mh += '<li>'+c+'</li>'; });
+      mh += '</ul>';
+    }
+    mh += '</div>';
+
+    mh += '</div>'; // dm-columns
+
+    // Dispute
+    if (!isAgree && md.dispute) {
+      var dp = md.dispute;
+      mh += '<div class="dm-dispute">';
+      mh += '<div class="dm-dispute-title"><span style="color:var(--red);font-weight:700">&#9878;</span> AI 分歧裁决';
+      if (dp.source) mh += ' <span class="dispute-source">'+ esc(dp.source) +'</span>';
+      mh += '</div>';
+      if (dp.findings && dp.findings.length) {
+        mh += '<ul class="dm-dispute-items">';
+        dp.findings.forEach(function(f) {
+          var tc = f.tag==='Both'?'tag-both':f.tag.indexOf('Agent-1')===0?'tag-agent1':'tag-agent2';
+          mh += '<li><span class="'+tc+'">'+f.tag+'</span> '+f.text+'</li>';
+        });
+        mh += '</ul>';
+      }
+      if (dp.reason) mh += '<div class="dispute-reason">'+dp.reason+'</div>';
+      mh += '</div>';
+    }
+
+    // ── Human review panel ──
+    mh += '<div class="dm-human">';
+    mh += '<div class="dm-human-title">&#9998; 人工审阅</div>';
+    mh += '<div class="dm-human-row">';
+
+    // Override verdict
+    mh += '<div class="dm-human-field">';
+    mh += '<label>覆盖判决</label>';
+    mh += '<select id="sel-'+esc(md.module)+'" onchange="onVerdictChange(\''+esc(md.module)+'\',this.value)">';
+    mh += '<option value="">— 保持 AI 裁决 —</option>';
+    mh += '<option value="核心基石"'+(dec.overrideVerdict==='核心基石'?' selected':'')+'>核心基石</option>';
+    mh += '<option value="提纯合并"'+(dec.overrideVerdict==='提纯合并'?' selected':'')+'>提纯合并</option>';
+    mh += '<option value="重塑提取"'+(dec.overrideVerdict==='重塑提取'?' selected':'')+'>重塑提取</option>';
+    mh += '<option value="彻底淘汰"'+(dec.overrideVerdict==='彻底淘汰'?' selected':'')+'>彻底淘汰</option>';
+    mh += '</select></div>';
+
+    // Note
+    mh += '<div class="dm-human-field dm-human-note">';
+    mh += '<label>备注</label>';
+    mh += '<textarea id="note-'+esc(md.module)+'" placeholder="人工审阅备注..." onblur="onNoteChange(\''+esc(md.module)+'\',this.value)">'+ esc(dec.note||'') +'</textarea>';
+    mh += '</div>';
+
+    // Review toggle
+    mh += '<div class="dm-human-actions">';
+    mh += '<button class="dm-review-btn'+(isReviewed?' checked':'')+'" id="rbtn-'+esc(md.module)+'" onclick="onReviewToggle(\''+esc(md.module)+'\')">'+(isReviewed?'&#10003; 已审阅':'标记已审阅')+'</button>';
+    mh += '</div>';
+
+    mh += '</div>'; // dm-human-row
+    mh += '</div>'; // dm-human
+
+    mh += '</div>'; // dm-body
+    mh += '</div>'; // dm-card
+  });
+  document.getElementById('moduleCards').innerHTML = mh;
+
+  // ── Unique findings ──
+  var unique = ds.uniqueFindings || [];
+  if (unique.length) {
+    document.getElementById('uniqueSection').style.display = '';
+    var uh = '';
+    unique.forEach(function(u) {
+      uh += '<div class="unique-finding">';
+      uh += '<span class="tag-a2">'+ esc(u.tag) +'</span>';
+      uh += '<span class="unique-module">'+ esc(u.module) +'</span>';
+      uh += '<span>'+u.text+'</span>';
+      uh += '</div>';
+    });
+    document.getElementById('uniqueBody').innerHTML = uh;
+  }
+
+  // ── Full comparison table (with human column) ──
+  if (comps.length) {
+    document.getElementById('tableSection').style.display = '';
+    var dec_all = loadDecisions();
+    var th = '<table class="comp-table"><thead><tr><th>模块</th><th>Agent-1</th><th>Agent-2</th><th>一致</th><th>AI 终判</th><th style="color:var(--human)">人工覆盖</th><th>状态</th></tr></thead><tbody>';
+    comps.forEach(function(c) {
+      var md = (dec_all.modules && dec_all.modules[c.module]) || {};
+      th += '<tr>';
+      th += '<td class="mod-name">'+ esc(c.module) +'</td>';
+      th += '<td class="verdict-'+vc(c.agent1)+'">'+ esc(c.agent1) +'</td>';
+      th += '<td class="verdict-'+vc(c.agent2)+'">'+ esc(c.agent2) +'</td>';
+      th += '<td class="'+(c.agree?'agree-yes':'agree-no')+'">'+(c.agree?'&#10003;':'&#10007;')+'</td>';
+      th += '<td class="verdict-'+vc(c.final)+'">'+ esc(c.final) +'</td>';
+      th += '<td class="verdict-human">'+ (md.overrideVerdict ? '&#9998; '+esc(md.overrideVerdict) : '<span style="color:var(--text-dim)">—</span>') +'</td>';
+      th += '<td>'+ (md.reviewed ? '<span style="color:var(--human);font-weight:600">&#10003; 已审阅</span>' : '<span style="color:var(--text-dim)">待审</span>') +'</td>';
+      th += '</tr>';
+    });
+    th += '</tbody></table>';
+    document.getElementById('tableBody').innerHTML = th;
+  }
+
+  // ── Summary note ──
+  if (ds.summaryNote) {
+    document.getElementById('summaryNote').innerHTML = '<div class="summary-note">'+ds.summaryNote+'</div>';
+  }
+
+  // Auto-expand disagree cards
+  document.querySelectorAll('.dm-card.dm-disagree').forEach(function(c){ c.classList.add('dm-open'); });
+
+  // Drag-and-drop import
+  var drop = document.getElementById('importDrop');
+  drop.addEventListener('dragover', function(e) { e.preventDefault(); drop.style.borderColor = 'var(--human)'; });
+  drop.addEventListener('dragleave', function() { drop.style.borderColor = 'var(--border)'; });
+  drop.addEventListener('drop', function(e) { e.preventDefault(); drop.style.borderColor = 'var(--border)';
+    if (e.dataTransfer.files.length) importFromFile(e.dataTransfer.files[0]); });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Human review handlers
+// ═══════════════════════════════════════════════════════════
+function onVerdictChange(mod, val) {
+  setModuleDecision(mod, 'overrideVerdict', val || null);
+  var hpill = document.getElementById('hpill-' + mod);
+  var otag = document.getElementById('otag-' + mod);
+  if (val) {
+    hpill.textContent = '\u270E ' + val;
+    hpill.style.display = 'inline';
+    otag.style.display = 'inline';
+  } else {
+    hpill.style.display = 'none';
+    otag.style.display = 'none';
+  }
+  toast(mod + ': ' + (val ? '覆盖为 ' + val : '恢复 AI 裁决'));
+}
+
+function onNoteChange(mod, val) {
+  setModuleDecision(mod, 'note', val || '');
+}
+
+function onReviewToggle(mod) {
+  var dec = getModuleDecision(mod);
+  var next = !dec.reviewed;
+  setModuleDecision(mod, 'reviewed', next);
+  var btn = document.getElementById('rbtn-' + mod);
+  btn.textContent = next ? '\u2713 已审阅' : '标记已审阅';
+  btn.classList.toggle('checked', next);
+  toast(mod + ': ' + (next ? '已标记审阅' : '取消审阅'));
+}
+
+function updateCardTags(mod) {
+  var dec = getModuleDecision(mod);
+  var card = document.getElementById('card-' + mod);
+  var rtag = document.getElementById('rtag-' + mod);
+  if (card) card.classList.toggle('dm-reviewed', !!dec.reviewed);
+  if (rtag) rtag.style.display = dec.reviewed ? 'inline' : 'none';
+}
+
+function updateToolbar() {
+  var ds = REPORT.dualScan;
+  var details = ds.moduleDetails || [];
+  var d = loadDecisions();
+  var mods = d.modules || {};
+  var reviewed = 0, overridden = 0;
+  details.forEach(function(md) {
+    var m = mods[md.module];
+    if (m && m.reviewed) reviewed++;
+    if (m && m.overrideVerdict) overridden++;
+  });
+  var total = details.length;
+  var pct = total > 0 ? Math.round(reviewed / total * 100) : 0;
+
+  var h = '';
+  h += '<span class="tb-label">&#9998; 人工审阅</span>';
+  h += '<div class="tb-progress">';
+  h += '<div class="tb-progress-bar"><div class="tb-progress-fill" style="width:'+pct+'%"></div></div>';
+  h += '<div class="tb-progress-text">'+reviewed+' / '+total+' 已审阅' + (overridden > 0 ? '，'+overridden+' 个覆盖' : '') + '</div>';
+  h += '</div>';
+  h += '<div class="tb-sep"></div>';
+  h += '<button class="tb-btn tb-primary" onclick="exportDecisions()">&#8681; 导出决策</button>';
+  h += '<button class="tb-btn" onclick="showImport()">&#8679; 导入决策</button>';
+  if (reviewed > 0) h += '<button class="tb-btn tb-danger" onclick="clearDecisions()">&#10005; 清空</button>';
+  document.getElementById('toolbar').innerHTML = h;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Export / Import
+// ═══════════════════════════════════════════════════════════
+function exportDecisions() {
+  var d = loadDecisions();
+  d.version = 1;
+  d.target = REPORT.target || '';
+  d.exportedAt = new Date().toISOString();
+  var blob = new Blob([JSON.stringify(d, null, 2)], {type: 'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'human-decisions.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('决策已导出为 human-decisions.json');
+}
+
+function showImport() {
+  document.getElementById('importOverlay').classList.add('show');
+}
+function closeImport() {
+  document.getElementById('importOverlay').classList.remove('show');
+}
+function doImport(input) {
+  if (input.files.length) importFromFile(input.files[0]);
+}
+function importFromFile(file) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = JSON.parse(e.target.result);
+      if (!data.modules) throw new Error('无 modules 字段');
+      // Merge imported into current
+      var current = loadDecisions();
+      if (!current.modules) current.modules = {};
+      for (var mod in data.modules) {
+        current.modules[mod] = data.modules[mod];
+      }
+      saveDecisions(current);
+      closeImport();
+      toast('已导入 ' + Object.keys(data.modules).length + ' 个模块的决策');
+      // Refresh UI
+      setTimeout(function() { location.reload(); }, 500);
+    } catch(err) {
+      alert('导入失败: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function clearDecisions() {
+  if (!confirm('确定清空所有人工审阅记录？此操作不可恢复。')) return;
+  localStorage.removeItem(LS_KEY);
+  toast('已清空所有审阅记录');
+  setTimeout(function() { location.reload(); }, 500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// Filter with human review states
+// ═══════════════════════════════════════════════════════════
+function filterCards(mode, btn) {
+  document.querySelectorAll('.filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  var d = loadDecisions();
+  var mods = d.modules || {};
+  document.querySelectorAll('.dm-card').forEach(function(c) {
+    var mod = c.dataset.module;
+    var m = mods[mod] || {};
+    if (mode === 'all') c.style.display = '';
+    else if (mode === 'agree') c.style.display = c.dataset.agree === 'agree' ? '' : 'none';
+    else if (mode === 'disagree') c.style.display = c.dataset.agree === 'disagree' ? '' : 'none';
+    else if (mode === 'reviewed') c.style.display = m.reviewed ? '' : 'none';
+    else if (mode === 'unreviewed') c.style.display = !m.reviewed ? '' : 'none';
+  });
+}
+
+function searchCards(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.dm-card').forEach(function(c) {
+    c.style.display = !q || c.dataset.name.indexOf(q) >= 0 ? '' : 'none';
+  });
+}
+
+// ── Helpers ──
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function vc(v) {
+  if (!v) return 'core';
+  if (v.indexOf('基石')>=0) return 'core';
+  if (v.indexOf('合并')>=0) return 'merge';
+  if (v.indexOf('重塑')>=0) return 'rebuild';
+  if (v.indexOf('淘汰')>=0) return 'retire';
+  return 'core';
+}
+function statBox(val, lbl, color, fontSize) {
+  return '<div class="stat-box"><div class="val" style="color:'+color+(fontSize?';font-size:'+fontSize:'')+'">'+val+'</div><div class="lbl">'+lbl+'</div></div>';
+}
+function pill(text, vcls, isFinal) {
+  return '<span class="dm-verdict-pill verdict-'+vcls+(isFinal?' dm-final':'')+'">'+ text +'</span>';
+}
+function field(label, content) {
+  return '<div class="dm-field"><span class="dm-field-label">'+label+'</span>'+content+'</div>';
+}
+function toggleCard(header) { header.parentElement.classList.toggle('dm-open'); }
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(function(){ el.classList.remove('show'); }, 2500);
+}
+
+init();
+</script>
+</body>
+</html>

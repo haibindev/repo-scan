@@ -22,6 +22,23 @@ from parsers import parse_report, parse_index_report
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, '..', 'templates', 'report.html')
 INDEX_TEMPLATE_PATH = os.path.join(SCRIPT_DIR, '..', 'templates', 'index.html')
+DUAL_TEMPLATE_PATH = os.path.join(SCRIPT_DIR, '..', 'templates', 'dual-scan.html')
+
+
+def load_human_decisions(report_dir):
+    """读取 human-decisions.json（如存在），返回 dict 或 None"""
+    path = os.path.join(report_dir, '.dual-scan', 'human-decisions.json')
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if data.get('modules'):
+            print(f'  人工决策: {path} ({len(data["modules"])} 个模块)')
+        return data
+    except Exception as e:
+        print(f'  警告: human-decisions.json 读取失败: {e}')
+        return None
 
 
 def generate_html(report, template_path, output_path):
@@ -49,6 +66,7 @@ def main():
     parser.add_argument('-o', '--output', help='输出 HTML 路径')
     parser.add_argument('-t', '--template', default='', help='HTML 模板路径（留空则自动选择）')
     parser.add_argument('--open', action='store_true', help='生成后自动打开浏览器')
+    parser.add_argument('--dual', action='store_true', help='单独生成双扫描交叉验证页面（dual-scan.html）')
     args = parser.parse_args()
 
     if not os.path.exists(args.report):
@@ -82,6 +100,38 @@ def main():
 
     report_dir = os.path.dirname(os.path.abspath(args.report))
 
+    # ── 双扫描独立页面模式 ──
+    if args.dual:
+        dual_template = args.template or DUAL_TEMPLATE_PATH
+        if not os.path.exists(dual_template):
+            print(f'错误: 双扫描模板不存在: {dual_template}', file=sys.stderr)
+            sys.exit(1)
+        output = args.output or os.path.join(report_dir, 'dual-scan.html')
+        print(f'解析双扫描数据: {args.report}')
+        report = parse_index_report(args.report)
+        ds = report.get('dualScan')
+        if not ds:
+            print('警告: 未找到双扫描数据（需要 index.md 中有 ## 双扫描交叉验证 章节）', file=sys.stderr)
+            sys.exit(1)
+        details = ds.get('moduleDetails', [])
+        agree = sum(1 for d in details if d.get('agree'))
+        print(f'  模块对比: {len(details)} 个 (一致 {agree}, 分歧 {len(details)-agree})')
+        # 合并人工决策
+        hd = load_human_decisions(report_dir)
+        if hd:
+            report['humanDecisions'] = hd
+        generate_html(report, dual_template, output)
+        print(f'双扫描 HTML 已生成: {output}')
+        if args.open:
+            abs_path = os.path.abspath(output)
+            if platform.system() == 'Windows':
+                os.startfile(abs_path)
+            elif platform.system() == 'Darwin':
+                subprocess.run(['open', abs_path])
+            else:
+                subprocess.run(['xdg-open', abs_path])
+        return
+
     if is_index:
         output = args.output or os.path.join(report_dir, 'index.html')
         print(f'解析汇总索引: {args.report}')
@@ -99,8 +149,25 @@ def main():
         print(f'  定级表: {len(report["triage"])} 行')
         print(f'  三方依赖: {len(report["thirdPartyDeps"])} 个')
 
+    # 合并人工决策（如存在）
+    hd = load_human_decisions(report_dir)
+    if hd:
+        report['humanDecisions'] = hd
+
     generate_html(report, template, output)
     print(f'HTML 已生成: {output}')
+
+    # index 模式下，若有双扫描数据，自动生成独立的 dual-scan.html
+    if is_index and report.get('dualScan') and report['dualScan'].get('moduleDetails'):
+        dual_output = os.path.join(report_dir, 'dual-scan.html')
+        if os.path.exists(DUAL_TEMPLATE_PATH):
+            generate_html(report, DUAL_TEMPLATE_PATH, dual_output)
+            ds = report['dualScan']
+            details = ds.get('moduleDetails', [])
+            agree = sum(1 for d in details if d.get('agree'))
+            print(f'双扫描 HTML 已自动生成: {dual_output} ({len(details)} 模块, 一致 {agree})')
+        else:
+            print(f'提示: 双扫描模板不存在 ({DUAL_TEMPLATE_PATH})，跳过 dual-scan.html 生成')
 
     if args.open:
         abs_path = os.path.abspath(output)

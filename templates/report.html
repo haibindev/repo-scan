@@ -120,6 +120,22 @@
   .summary .risk { color: var(--red); }
   .summary .action { color: var(--green); }
 
+  /* ── Dual-Scan 双扫描验证 ── */
+  .dual-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700;
+                background: linear-gradient(135deg, rgba(63,185,80,0.2), rgba(88,166,255,0.2));
+                border: 1px solid var(--green); color: var(--green); letter-spacing: 1px; margin-right: 8px; }
+  .tag-both { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;
+              background: rgba(63,185,80,0.15); color: var(--green); margin-right: 4px; }
+  .tag-agent1 { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;
+                background: rgba(88,166,255,0.15); color: var(--accent); margin-right: 4px; }
+  .tag-agent2 { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;
+                background: rgba(188,140,255,0.15); color: var(--purple); margin-right: 4px; }
+  .dispute-box { border: 1px solid var(--yellow); border-radius: 8px; padding: 16px; margin-bottom: 12px;
+                 background: rgba(210,153,34,0.05); }
+  .dispute-box h5 { color: var(--yellow); font-size: 14px; margin-bottom: 8px; }
+  .agree-yes { color: var(--green); }
+  .agree-no { color: var(--red); font-weight: 600; }
+
   /* ── Deep 分析章节 ── */
   .deep-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700;
                 background: linear-gradient(135deg, rgba(188,140,255,0.2), rgba(88,166,255,0.2));
@@ -223,6 +239,12 @@
     </div>
     <div class="section-body" id="deepBody"></div>
   </div>
+  <div class="section" id="dualScanSection" style="display:none">
+    <div class="section-header" onclick="toggleSection(this)" style="border-left: 3px solid var(--green);">
+      <h2><span style="background:linear-gradient(135deg,var(--green),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DUAL</span> 双扫描交叉验证</h2><span class="toggle">&#9660;</span>
+    </div>
+    <div class="section-body" id="dualScanBody"></div>
+  </div>
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
       <h2>审计总结</h2><span class="toggle">&#9660;</span>
@@ -238,7 +260,8 @@ const REPORT = {};
 
 function init() {
   document.getElementById('reportTitle').innerHTML = (REPORT.title || '源码资产审计报告') +
-    (REPORT.hasDeep ? ' <span class="deep-badge" style="font-size:13px;vertical-align:middle">DEEP</span>' : '');
+    (REPORT.hasDeep ? ' <span class="deep-badge" style="font-size:13px;vertical-align:middle">DEEP</span>' : '') +
+    (REPORT.hasDualScan ? ' <span class="dual-badge" style="font-size:13px;vertical-align:middle">DUAL</span>' : '');
   document.getElementById('scanTarget').textContent = '目标路径: ' + (REPORT.target || '—');
   document.getElementById('scanDate').textContent = '扫描日期: ' + (REPORT.date || '—');
   if (REPORT.oldestSource || REPORT.newestSource) {
@@ -247,7 +270,7 @@ function init() {
     document.getElementById('scanDates').style.display = '';
   }
   if (REPORT.desc) document.getElementById('scanDesc').textContent = REPORT.desc;
-  renderStats(); renderStackBar(); renderTree(); renderModules(); renderTriage(); renderDeps(); renderDeep(); renderSummary();
+  renderStats(); renderStackBar(); renderTree(); renderModules(); renderTriage(); renderDeps(); renderDeep(); renderDualScan(); renderSummary();
 }
 function renderStats() {
   document.getElementById('statsGrid').innerHTML = (REPORT.stats||[]).map(s =>
@@ -320,6 +343,56 @@ function renderDeep() {
     h += '</ul></div>';
   }
   document.getElementById('deepBody').innerHTML = h;
+}
+function renderDualScan() {
+  var ds = REPORT.dualScan;
+  if (!ds) return;
+  document.getElementById('dualScanSection').style.display = '';
+  var h = '';
+  // 验证概况
+  if (ds.overview && ds.overview.agreeRate) {
+    h += '<div style="margin-bottom:20px;padding:12px 16px;background:rgba(63,185,80,0.08);border-radius:6px;font-size:14px">';
+    h += '<strong>判决一致率：</strong>' + ds.overview.agreeRate;
+    h += '</div>';
+  }
+  // 判决对比表
+  if (ds.comparisons && ds.comparisons.length) {
+    h += '<h4 style="margin-bottom:12px;color:var(--accent)">判决对比</h4>';
+    h += '<table class="triage-table" style="margin-bottom:24px"><thead><tr>';
+    h += '<th style="width:20%">模块</th><th style="width:20%">Agent-1</th><th style="width:20%">Agent-2</th>';
+    h += '<th style="width:20%">最终判决</th><th style="width:20%">一致性</th></tr></thead><tbody>';
+    ds.comparisons.forEach(function(c) {
+      var vc = verdictClass(c.final);
+      h += '<tr><td><strong>' + c.module + '</strong></td>';
+      h += '<td class="verdict verdict-' + verdictClass(c.agent1) + '">' + c.agent1 + '</td>';
+      h += '<td class="verdict verdict-' + verdictClass(c.agent2) + '">' + c.agent2 + '</td>';
+      h += '<td class="verdict verdict-' + vc + '">' + c.final + '</td>';
+      h += '<td class="' + (c.agree ? 'agree-yes' : 'agree-no') + '">' + (c.agree ? '✓ 一致' : '✗ 分歧') + '</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+  // 发现对比明细
+  if (ds.findings && Object.keys(ds.findings).length) {
+    h += '<h4 style="margin-bottom:12px;color:var(--accent)">发现对比明细</h4>';
+    Object.keys(ds.findings).forEach(function(mod) {
+      h += '<div style="margin-bottom:16px"><h5 style="font-size:14px;color:var(--text);margin-bottom:8px">' + mod + '</h5><ul style="padding-left:20px">';
+      ds.findings[mod].forEach(function(f) {
+        var cls = f.tag === 'Both' ? 'tag-both' : f.tag.indexOf('Agent-1') === 0 ? 'tag-agent1' : 'tag-agent2';
+        h += '<li style="margin-bottom:4px"><span class="' + cls + '">' + f.tag + '</span> ' + f.text + '</li>';
+      });
+      h += '</ul></div>';
+    });
+  }
+  // 分歧解析
+  if (ds.disputes && ds.disputes.length) {
+    h += '<h4 style="margin-bottom:12px;color:var(--yellow)">分歧解析</h4>';
+    ds.disputes.forEach(function(d) {
+      h += '<div class="dispute-box"><h5>' + d.module + (d.subtitle ? ' — ' + d.subtitle : '') + '</h5><ul style="padding-left:20px">';
+      d.lines.forEach(function(l) { h += '<li style="margin-bottom:4px">' + l + '</li>'; });
+      h += '</ul></div>';
+    });
+  }
+  document.getElementById('dualScanBody').innerHTML = h;
 }
 function renderSummary() {
   var s = REPORT.summary;

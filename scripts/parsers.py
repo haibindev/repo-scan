@@ -473,6 +473,93 @@ def build_stats(header, modules, text):
 
     return stats
 
+def parse_dual_scan(text):
+    """解析 ### 双扫描交叉验证 章节，返回 dict 或 None"""
+    m = re.search(r'### 双扫描交叉验证\s*\n(.*?)(?:\n### (?!#)|\n## |\Z)', text, re.DOTALL)
+    if not m:
+        return None
+    section = m.group(1)
+    dual = {}
+
+    # 验证概况
+    overview = {}
+    for key, zh in [('agreeRate', '判决一致率')]:
+        om = re.search(re.escape(zh) + r'[：:]\s*(.+?)(?:\n|$)', section)
+        if om:
+            overview[key] = om.group(1).strip()
+    dual['overview'] = overview
+
+    # 判决对比表
+    comparisons = []
+    comp_m = re.search(r'#### 判决对比\s*\n\|.+\|\s*\n\|[-| :]+\|\s*\n((?:\|.+\|\s*\n?)+)', section)
+    if comp_m:
+        for line in comp_m.group(1).strip().split('\n'):
+            cells = [clean(c) for c in line.split('|')[1:] if c != '']
+            while cells and not cells[-1]:
+                cells.pop()
+            if len(cells) >= 5:
+                comparisons.append({
+                    'module': strip_backtick(strip_bold(cells[0])),
+                    'agent1': strip_bold(cells[1]),
+                    'agent2': strip_bold(cells[2]),
+                    'final': strip_bold(cells[3]),
+                    'agree': '✓' in cells[4],
+                })
+    dual['comparisons'] = comparisons
+
+    # 发现对比明细 — 按模块分组
+    findings = {}
+    detail_m = re.search(r'#### 发现对比明细\s*\n(.*?)(?=\n#### |\Z)', section, re.DOTALL)
+    if detail_m:
+        detail_text = detail_m.group(1)
+        current_mod = ''
+        for line in detail_text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            mod_m = re.match(r'^#{5}\s+(.+)', line)
+            if mod_m:
+                current_mod = strip_backtick(mod_m.group(1).strip())
+                findings[current_mod] = []
+                continue
+            if current_mod and re.match(r'^-\s+\[', line):
+                # 匹配 [Both] / [Agent-1] / [Agent-2] / [Agent-1:ClaudeCode] / [Agent-2:Codex] 等
+                tag_m = re.match(r'^-\s+\[(Both|Agent-1(?::\w+)?|Agent-2(?::\w+)?)\]\s*(.*)', line)
+                if tag_m:
+                    findings[current_mod].append({
+                        'tag': tag_m.group(1),
+                        'text': md_to_html(tag_m.group(2)),
+                    })
+    dual['findings'] = findings
+
+    # 分歧解析
+    disputes = []
+    disp_m = re.search(r'#### 分歧解析\s*\n(.*?)(?=\n#### |\n### |\n## |\Z)', section, re.DOTALL)
+    if disp_m:
+        disp_text = disp_m.group(1)
+        current_dispute = None
+        for line in disp_text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            mod_m = re.match(r'^#{5}\s+(.+?)(?:\s*[—\-]+\s*(.*))?$', line)
+            if mod_m:
+                if current_dispute:
+                    disputes.append(current_dispute)
+                current_dispute = {
+                    'module': strip_backtick(mod_m.group(1).strip()),
+                    'subtitle': mod_m.group(2) or '',
+                    'lines': [],
+                }
+                continue
+            if current_dispute and line.startswith('-'):
+                current_dispute['lines'].append(md_to_html(re.sub(r'^-\s*', '', line)))
+        if current_dispute:
+            disputes.append(current_dispute)
+    dual['disputes'] = disputes
+
+    return dual
+
 # ─── 主流程 ──────────────────────────────────────────────────
 
 def parse_report(md_path):
@@ -485,6 +572,7 @@ def parse_report(md_path):
     modules = parse_modules(text)
     summary = parse_summary(text)
     deep = parse_deep_analysis(text)
+    dual_scan = parse_dual_scan(text)
     git_activity = parse_git_activity(text)
     stack = estimate_stack(modules, text)
     stats = build_stats(header, modules, text)
@@ -550,9 +638,326 @@ def parse_report(md_path):
         'summary': summary,
         'deep': deep,
         'hasDeep': deep is not None,
+        'dualScan': dual_scan,
+        'hasDualScan': dual_scan is not None,
         'gitActivity': git_activity,
     }
     return report
+
+# ─── 双扫描解析（index.md 格式）────────────────────────────
+
+def parse_dual_scan_index(text):
+    """解析 ## 双扫描交叉验证 章节（index.md 格式），返回 dict 或 None"""
+    m = re.search(r'## 双扫描交叉验证[^\n]*\n(.*?)(?:\n## (?!#)|\Z)', text, re.DOTALL)
+    if not m:
+        return None
+    section = m.group(1)
+    dual = {}
+
+    # ── Agent 信息 ──
+    # 格式: **Agent-1**: Claude Code (Opus 4.6) — Full 级全量扫描
+    # 用 " — "（空格+em-dash+空格）或 " - "（空格+连字符+空格）分隔名称和角色
+    a1m = re.search(r'\*\*Agent-1\*\*[：:]\s*(.+?)(?:\s+[—–]\s+(.+))?$', section, re.MULTILINE)
+    a2m = re.search(r'\*\*Agent-2\*\*[：:]\s*(.+?)(?:\s+[—–]\s+(.+))?$', section, re.MULTILINE)
+    dual['agent1'] = {'name': a1m.group(1).strip() if a1m else 'Agent-1',
+                      'role': (a1m.group(2) or '').strip() if a1m else ''}
+    dual['agent2'] = {'name': a2m.group(1).strip() if a2m else 'Agent-2',
+                      'role': (a2m.group(2) or '').strip() if a2m else ''}
+    dm = re.search(r'\*\*验证日期\*\*[：:]\s*(\S+)', section)
+    dual['date'] = dm.group(1).strip() if dm else ''
+    am = re.search(r'\*\*一致率\*\*[：:]\s*(.+?)(?:\n|$)', section)
+    dual['agreeRate'] = am.group(1).strip() if am else ''
+
+    # ── 判决对照表 ──
+    comparisons = []
+    comp_m = re.search(r'### 判决对照表\s*\n\|.+\|\s*\n\|[-| :]+\|\s*\n((?:\|.+\|\s*\n?)+)', section)
+    if comp_m:
+        for line in comp_m.group(1).strip().split('\n'):
+            cells = [clean(c) for c in line.split('|')[1:] if c != '']
+            while cells and not cells[-1]:
+                cells.pop()
+            if len(cells) >= 5:
+                comparisons.append({
+                    'module': strip_backtick(strip_bold(cells[0])),
+                    'agent1': strip_bold(cells[1]),
+                    'agent2': strip_bold(cells[2]),
+                    'final': strip_bold(cells[3]),
+                    'agree': '✓' in cells[4],
+                })
+    dual['comparisons'] = comparisons
+
+    # ── 系统性发现 ──
+    sf_m = re.search(r'\*\*系统性发现\*\*[：:]\s*(.+?)(?:\n|$)', section)
+    dual['systemicFinding'] = md_to_html(sf_m.group(1).strip()) if sf_m else ''
+
+    # ── 分歧裁决 ──
+    disputes = []
+    disp_m = re.search(r'#### 分歧裁决依据\s*\n(.*?)(?=\n### |\Z)', section, re.DOTALL)
+    if disp_m:
+        disp_text = disp_m.group(1)
+        current = None
+        for line in disp_text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            # **[1] module_name → verdict**（source）
+            header_m = re.match(r'^\*\*\[(\d+)\]\s+(.+?)\s*→\s*(.+?)\*\*(?:（(.+?)）)?', line)
+            if header_m:
+                if current:
+                    disputes.append(current)
+                current = {
+                    'num': header_m.group(1),
+                    'module': header_m.group(2).strip(),
+                    'finalVerdict': header_m.group(3).strip(),
+                    'source': header_m.group(4) or '',
+                    'findings': [],
+                    'reason': '',
+                }
+                continue
+            if not current:
+                continue
+            # - [Tag] text  或  - 裁决理由：text
+            reason_m = re.match(r'^-\s*裁决理由[：:]\s*(.*)', line)
+            if reason_m:
+                current['reason'] = md_to_html(reason_m.group(1))
+                continue
+            tag_m = re.match(r'^-\s+\[(Both|Agent-1(?::\w+)?|Agent-2(?::\w+)?)\]\s*(.*)', line)
+            if tag_m:
+                current['findings'].append({
+                    'tag': tag_m.group(1),
+                    'text': md_to_html(tag_m.group(2)),
+                })
+        if current:
+            disputes.append(current)
+    dual['disputes'] = disputes
+
+    # ── 修正后判决汇总 ──
+    corrected = []
+    corr_m = re.search(r'### 修正后判决汇总\s*\n\|.+\|\s*\n\|[-| :]+\|\s*\n((?:\|.+\|\s*\n?)+)', section)
+    if corr_m:
+        for line in corr_m.group(1).strip().split('\n'):
+            cells = [clean(c) for c in line.split('|')[1:] if c != '']
+            while cells and not cells[-1]:
+                cells.pop()
+            if len(cells) >= 3:
+                corrected.append({
+                    'verdict': strip_bold(cells[0]),
+                    'count': cells[1].strip(),
+                    'modules': cells[2].strip(),
+                })
+    dual['correctedSummary'] = corrected
+
+    # ── 对比变化 ──
+    changes = []
+    chg_m = re.search(r'\*\*与单扫描对比变化\*\*[：:]?\s*\n((?:-\s+.+\n?)+)', section)
+    if chg_m:
+        for line in chg_m.group(1).strip().split('\n'):
+            line = line.strip()
+            if line.startswith('-'):
+                changes.append(md_to_html(re.sub(r'^-\s*', '', line)))
+    dual['verdictChanges'] = changes
+
+    # ── 总结性注释（blockquote）──
+    note_m = re.search(r'>\s*双扫描验证(.+?)(?:\n\n|\n>|\Z)', section, re.DOTALL)
+    dual['summaryNote'] = md_to_html(note_m.group(0).replace('> ', '').strip()) if note_m else ''
+
+    # ── Agent-2 独有发现 ──
+    unique = []
+    uniq_m = re.search(r'### Agent-2 独有发现摘要\s*\n(.*?)(?=\n### |\n## |\n---|\Z)', section, re.DOTALL)
+    if uniq_m:
+        for line in uniq_m.group(1).strip().split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            # 1. **[Agent-2:Codex] module**: text
+            fm = re.match(r'^\d+\.\s*\*\*\[(Agent-2(?::\w+)?)\]\s*(.+?)\*\*[：:]\s*(.*)', line)
+            if fm:
+                unique.append({
+                    'tag': fm.group(1),
+                    'module': fm.group(2).strip(),
+                    'text': md_to_html(fm.group(3)),
+                })
+    dual['uniqueFindings'] = unique
+
+    return dual
+
+
+def _parse_agent2_modules(dual_dir):
+    """从 .dual-scan/result-batch*.txt 解析 Agent-2 每个模块的原始分析"""
+    import glob
+    modules = {}
+    for fpath in sorted(glob.glob(os.path.join(dual_dir, 'result-batch*.txt'))):
+        try:
+            with open(fpath, 'r', encoding='utf-8') as f:
+                text = f.read()
+        except Exception:
+            continue
+        if not text.strip():
+            continue
+        # 按 ### module_name 切分
+        for m in re.finditer(r'^### (\S+)\s*\n(.*?)(?=\n### |\Z)', text, re.DOTALL | re.MULTILINE):
+            name = m.group(1).strip()
+            body = m.group(2)
+            verdict_m = re.search(r'\*\*判决\*\*[：:]\s*(.+)', body)
+            reason_m = re.search(r'\*\*判决理由\*\*[：:]\s*(.+)', body)
+            # 提取关键发现（编号列表）
+            findings = []
+            findings_m = re.search(r'\*\*关键发现\*\*[：:]\s*\n(.*?)(?:\n-\s+\*\*横向|\Z)', body, re.DOTALL)
+            if findings_m:
+                raw = findings_m.group(1)
+                # 每个编号项可能跨多行
+                parts = re.split(r'\n\s+(?=\d+\.\s)', raw)
+                for p in parts:
+                    p = p.strip()
+                    if not p:
+                        continue
+                    p = re.sub(r'^\d+\.\s*', '', p)
+                    # 截断超长发现，保留前 500 字符
+                    if len(p) > 500:
+                        p = p[:500] + '…'
+                    findings.append(md_to_html(p.replace('\n', ' ')))
+            # 横向对比
+            cross = []
+            cross_m = re.search(r'\*\*横向对比\*\*[^：:]*[：:]\s*\n(.*?)(?=\n### |\Z)', body, re.DOTALL)
+            if cross_m:
+                for line in cross_m.group(1).strip().split('\n'):
+                    line = line.strip()
+                    if line.startswith('-'):
+                        cross.append(md_to_html(re.sub(r'^-\s*', '', line)))
+            modules[name] = {
+                'verdict': strip_bold(verdict_m.group(1).strip()) if verdict_m else '',
+                'verdictReason': md_to_html(reason_m.group(1).strip()) if reason_m else '',
+                'findings': findings,
+                'crossComparison': cross,
+            }
+    return modules
+
+
+def _parse_agent1_modules(md_dir):
+    """从 batch*-full-report.md 解析 Agent-1 每个模块的原始分析"""
+    import glob
+    modules = {}
+    for fpath in sorted(glob.glob(os.path.join(md_dir, 'batch*-full-report.md'))):
+        try:
+            with open(fpath, 'r', encoding='utf-8') as f:
+                text = f.read()
+        except Exception:
+            continue
+        # 按 ### N.N module_name — description 切分
+        for m in re.finditer(
+                r'^### \d+\.\d+\s+(\S+)\s*(?:—\s*(.+?))?\s*\n(.*?)(?=\n### \d+\.\d+|\n## |\Z)',
+                text, re.DOTALL | re.MULTILINE):
+            name = m.group(1).strip()
+            subtitle = (m.group(2) or '').strip()
+            body = m.group(3)
+            # 提取结构化字段
+            def _field(key):
+                fm = re.search(r'\*\*' + re.escape(key) + r'\*\*[：:]\s*(.+?)(?=\n-\s+\*\*|\Z)', body, re.DOTALL)
+                if fm:
+                    val = fm.group(1).strip()
+                    # 截断超长
+                    if len(val) > 500:
+                        val = val[:500] + '…'
+                    return md_to_html(val.replace('\n', ' '))
+                return ''
+
+            func = _field('功能全貌矩阵')
+            core = _field('内部核心代码模块')
+            deps = _field('模块间依赖关系')
+            third = _field('三方库引用')
+            size = _field('代码体量')
+
+            # 质量评估（多行列表）
+            quality_items = []
+            qual_m = re.search(r'\*\*质量与技术债评估\*\*[：:]?\s*\n(.*?)(?=\n### |\n## |\Z)', body, re.DOTALL)
+            if qual_m:
+                for line in qual_m.group(1).strip().split('\n'):
+                    line = line.strip()
+                    if not line or '定论判决' in line:
+                        continue
+                    if line.startswith('-'):
+                        line = re.sub(r'^-\s*', '', line)
+                        if len(line) > 300:
+                            line = line[:300] + '…'
+                        quality_items.append(md_to_html(line))
+
+            # 判决
+            verdict = ''
+            vm = re.search(r'定论判决[：:]\s*\*{0,2}(核心基石|提纯合并|重塑提取|彻底淘汰)', body)
+            if vm:
+                verdict = vm.group(1)
+
+            modules[name] = {
+                'verdict': verdict,
+                'subtitle': subtitle,
+                'function': func,
+                'coreClasses': core,
+                'deps': deps,
+                'thirdParty': third,
+                'codeSize': size,
+                'qualityItems': quality_items,
+            }
+    return modules
+
+
+def parse_dual_scan_full(text, md_dir):
+    """解析双扫描全量数据：index.md 汇总 + Agent-1/Agent-2 原始分析"""
+    # 先解析 index.md 中的汇总信息
+    dual = parse_dual_scan_index(text)
+    if not dual:
+        return None
+
+    # 读取两个 Agent 的原始每模块分析
+    dual_dir = os.path.join(md_dir, '.dual-scan')
+    agent2_data = _parse_agent2_modules(dual_dir) if os.path.isdir(dual_dir) else {}
+    agent1_data = _parse_agent1_modules(md_dir)
+
+    # 构建每模块的完整对比数据
+    module_details = []
+    # 将 disputes 索引化
+    dispute_map = {}
+    for d in dual.get('disputes', []):
+        dispute_map[d['module']] = d
+
+    for comp in dual.get('comparisons', []):
+        name = comp['module']
+        a1 = agent1_data.get(name, {})
+        a2 = agent2_data.get(name, {})
+        disp = dispute_map.get(name, {})
+
+        module_details.append({
+            'module': name,
+            'agent1Verdict': comp.get('agent1', ''),
+            'agent2Verdict': comp.get('agent2', ''),
+            'finalVerdict': comp.get('final', ''),
+            'agree': comp.get('agree', False),
+            # Agent-1 详情
+            'a1': {
+                'subtitle': a1.get('subtitle', ''),
+                'function': a1.get('function', ''),
+                'coreClasses': a1.get('coreClasses', ''),
+                'deps': a1.get('deps', ''),
+                'thirdParty': a1.get('thirdParty', ''),
+                'codeSize': a1.get('codeSize', ''),
+                'qualityItems': a1.get('qualityItems', []),
+            },
+            # Agent-2 详情
+            'a2': {
+                'verdictReason': a2.get('verdictReason', ''),
+                'findings': a2.get('findings', []),
+                'crossComparison': a2.get('crossComparison', []),
+            },
+            # 分歧裁决
+            'dispute': {
+                'source': disp.get('source', ''),
+                'findings': disp.get('findings', []),
+                'reason': disp.get('reason', ''),
+            } if disp else None,
+        })
+
+    dual['moduleDetails'] = module_details
+    return dual
+
 
 # ─── index.md 解析器 ─────────────────────────────────────────
 
@@ -918,6 +1323,9 @@ def parse_index_report(md_path):
                 proj['hasDeep'] = True
                 proj['deepCount'] = max(proj.get('deepCount', 0), deep_count)
 
+    # ── 双扫描交叉验证 ──
+    dual_scan = parse_dual_scan_full(text, md_dir)
+
     # ── 审计总结（复用 parse_summary）──
     summary = parse_summary(text)
 
@@ -931,6 +1339,8 @@ def parse_index_report(md_path):
         'desc': desc,
         'subprojects': subprojects,
         'tree': tree,
+        'dualScan': dual_scan,
+        'hasDualScan': dual_scan is not None,
         'modules': [{
             'name': m['name'],
             'path': m.get('path', ''),
