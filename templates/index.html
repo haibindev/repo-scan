@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>源码资产总览</title>
+<title id="pageTitle">Asset Overview</title>
 <style>
   :root {
     --bg: #0d1117; --surface: #161b22; --border: #30363d;
@@ -146,10 +146,10 @@
 <body>
 <div class="container">
   <div class="header">
-    <h1 id="reportTitle">源码资产总览</h1>
+    <h1 id="reportTitle"></h1>
     <div class="meta">
-      <span id="scanTarget">目标路径: —</span> &nbsp;|&nbsp;
-      <span id="scanDate">扫描日期: —</span>
+      <span id="scanTarget"></span> &nbsp;|&nbsp;
+      <span id="scanDate"></span>
     </div>
     <div class="desc" id="scanDesc"></div>
   </div>
@@ -158,7 +158,7 @@
 
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>子项目一览</h2><span class="toggle">&#9660;</span>
+      <h2 id="secSubprojects"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body">
       <div class="project-grid" id="projectGrid"></div>
@@ -167,49 +167,49 @@
 
   <div class="section" id="treeSection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>资产总览树</h2><span class="toggle">&#9660;</span>
+      <h2 id="secTree"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body"><pre id="assetTree" style="font-size:13px;line-height:1.5;overflow-x:auto;white-space:pre;color:var(--text-dim)"></pre></div>
   </div>
 
   <div class="section" id="modulesSection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>模块级描述</h2><span class="toggle">&#9660;</span>
+      <h2 id="secModules"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body" id="modulesBody"></div>
   </div>
 
   <div class="section" id="triageSection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>资产定级表</h2><span class="toggle">&#9660;</span>
+      <h2 id="secTriage"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body"><div style="overflow-x:auto"><table class="cross-table" id="triageTable"></table></div></div>
   </div>
 
   <div class="section" id="deepSection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)" style="border-left: 3px solid var(--purple);">
-      <h2><span style="background:linear-gradient(135deg,var(--purple),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DEEP</span> 深度分析</h2><span class="toggle">&#9660;</span>
+      <h2><span style="background:linear-gradient(135deg,var(--purple),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DEEP</span> <span id="secDeep"></span></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body" id="deepBody"></div>
   </div>
 
   <div class="section" id="crossSection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>跨模块交叉审阅</h2><span class="toggle">&#9660;</span>
+      <h2 id="secCross"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body" id="crossBody"></div>
   </div>
 
   <div class="section" id="dualScanSection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)" style="border-left: 3px solid var(--green);">
-      <h2><span style="background:linear-gradient(135deg,var(--green),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DUAL</span> 双扫描交叉验证</h2><span class="toggle">&#9660;</span>
+      <h2><span style="background:linear-gradient(135deg,var(--green),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DUAL</span> <span id="secDual"></span></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body" id="dualScanBody"></div>
   </div>
 
   <div class="section" id="summarySection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>审计总结</h2><span class="toggle">&#9660;</span>
+      <h2 id="secSummary"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body summary" id="summaryBody"></div>
   </div>
@@ -220,12 +220,25 @@
 const REPORT = {};
 // __REPORT_END__
 
+var L = REPORT.LANG || {};
+
 function init() {
-  document.getElementById('reportTitle').innerHTML = (REPORT.title || '源码资产总览') +
+  document.title = L.title_index || 'Asset Overview';
+  document.getElementById('reportTitle').innerHTML = (REPORT.title || L.title_index || 'Asset Overview') +
     (REPORT.hasDeep ? ' <span class="deep-badge" style="font-size:13px;vertical-align:middle">DEEP</span>' : '') +
     (REPORT.hasDualScan ? ' <span class="dual-badge" style="font-size:13px;vertical-align:middle">DUAL</span>' : '');
-  document.getElementById('scanTarget').textContent = '目标路径: ' + (REPORT.target || '—');
-  document.getElementById('scanDate').textContent = '扫描日期: ' + (REPORT.date || '—');
+  document.getElementById('scanTarget').textContent = (L.target_path||'Target') + ': ' + (REPORT.target || '—');
+  document.getElementById('scanDate').textContent = (L.scan_date||'Scan Date') + ': ' + (REPORT.date || '—');
+  // Section titles
+  var _st = function(id,key,fb){ var e=document.getElementById(id); if(e) e.textContent=L[key]||fb; };
+  _st('secSubprojects','sec_subprojects','Sub-projects');
+  _st('secTree','sec_tree','Asset Tree');
+  _st('secModules','sec_modules','Module Descriptions');
+  _st('secTriage','sec_triage','Asset Triage Table');
+  _st('secDeep','sec_deep','Deep Analysis');
+  _st('secCross','sec_cross','Cross-Module Review');
+  _st('secDual','sec_dual','Dual-Scan');
+  _st('secSummary','sec_summary','Audit Summary');
   if (REPORT.desc) document.getElementById('scanDesc').textContent = REPORT.desc;
   renderStats();
   renderProjects();
@@ -250,12 +263,12 @@ function renderStats() {
     totalRetire  += v['彻底淘汰'] || 0;
   });
   var stats = [
-    { label: '子项目数', value: projects.length, color: 'accent' },
-    { label: '总源码文件', value: totalFiles || '—', color: 'green' },
-    { label: '核心基石', value: totalCore, color: 'green' },
-    { label: '提纯合并', value: totalMerge, color: 'yellow' },
-    { label: '重塑提取', value: totalRebuild, color: 'purple' },
-    { label: '彻底淘汰', value: totalRetire, color: 'red' },
+    { label: L.stat_subprojects||'Sub-projects', value: projects.length, color: 'accent' },
+    { label: L.stat_total_files||'Source Files', value: totalFiles || '—', color: 'green' },
+    { label: L.verdict_core||'Core', value: totalCore, color: 'green' },
+    { label: L.verdict_merge||'Merge', value: totalMerge, color: 'yellow' },
+    { label: L.verdict_rebuild||'Reshape', value: totalRebuild, color: 'purple' },
+    { label: L.verdict_retire||'Retire', value: totalRetire, color: 'red' },
   ];
   document.getElementById('statsGrid').innerHTML = stats.map(function(s) {
     return '<div class="stat-card"><div class="label">'+s.label+'</div><div class="value '+s.color+'">'+s.value+'</div></div>';
@@ -266,24 +279,20 @@ function renderProjects() {
   var projects = REPORT.subprojects || [];
   document.getElementById('projectGrid').innerHTML = projects.map(function(p) {
     var v = p.verdicts || {};
-    var total = (v['核心基石']||0) + (v['提纯合并']||0) + (v['重塑提取']||0) + (v['彻底淘汰']||0);
+    var vKeys = [['核心基石','Core'],['提纯合并','Purify & Merge'],['重塑提取','Reshape'],['彻底淘汰','Retire']];
+    function vCount(vk){ return v[vk[0]]||v[vk[1]]||0; }
+    var total = vKeys.reduce(function(s,k){return s+vCount(k);},0);
     function pct(n) { return total > 0 ? (n/total*100).toFixed(0) : 0; }
 
-    var barHtml = total > 0 ? [
-      {cls:'vb-core',  n:v['核心基石']||0},
-      {cls:'vb-merge', n:v['提纯合并']||0},
-      {cls:'vb-rebuild',n:v['重塑提取']||0},
-      {cls:'vb-retire', n:v['彻底淘汰']||0},
-    ].filter(function(x){return x.n>0;}).map(function(x){
+    var vLabels = [L.verdict_core||'Core',L.verdict_merge||'Purify & Merge',L.verdict_rebuild||'Reshape',L.verdict_retire||'Retire'];
+    var vCls = ['vb-core','vb-merge','vb-rebuild','vb-retire'];
+    var barHtml = total > 0 ? vKeys.map(function(k,i){return {cls:vCls[i],n:vCount(k)};})
+    .filter(function(x){return x.n>0;}).map(function(x){
       return '<div class="'+x.cls+'" style="flex:'+x.n+'"></div>';
     }).join('') : '';
 
-    var legendHtml = [
-      {cls:'vb-core',  label:'核心基石', n:v['核心基石']||0},
-      {cls:'vb-merge', label:'提纯合并', n:v['提纯合并']||0},
-      {cls:'vb-rebuild',label:'重塑提取',n:v['重塑提取']||0},
-      {cls:'vb-retire', label:'彻底淘汰',n:v['彻底淘汰']||0},
-    ].filter(function(x){return x.n>0;}).map(function(x){
+    var legendHtml = vKeys.map(function(k,i){return {cls:vCls[i],label:vLabels[i],n:vCount(k)};})
+    .filter(function(x){return x.n>0;}).map(function(x){
       return '<span><span class="dot" style="background:'+dotColor(x.cls)+'"></span>'+x.label+' '+x.n+'</span>';
     }).join('');
 
@@ -299,12 +308,12 @@ function renderProjects() {
     var deepTag = p.hasDeep ? ' <span class="deep-badge" style="font-size:10px;vertical-align:middle">DEEP' + (p.deepCount > 1 ? ' ×' + p.deepCount : '') + '</span>' : '';
     return (hasLink ? '<a class="project-card" href="'+href+'">' : '<div class="project-card">') +
       '<div class="proj-name">'+p.name+deepTag+'</div>'+
-      '<div class="proj-meta">'+(p.buildSystem||'')+(p.files?' &nbsp;·&nbsp; '+p.files+' 文件':'')+(p.size?' &nbsp;·&nbsp; '+p.size:'')+(p.lastModified && p.lastModified!=='-' ? ' &nbsp;·&nbsp; <span style="color:var(--accent)">'+p.lastModified+'</span>':'')+'</div>'+
+      '<div class="proj-meta">'+(p.buildSystem||'')+(p.files?' &nbsp;·&nbsp; '+p.files+' '+(L.files_unit||'files'):'')+(p.size?' &nbsp;·&nbsp; '+p.size:'')+(p.lastModified && p.lastModified!=='-' ? ' &nbsp;·&nbsp; <span style="color:var(--accent)">'+p.lastModified+'</span>':'')+'</div>'+
       (stackTags ? '<div class="proj-tags">'+stackTags+'</div>' : '')+
-      (total > 0 ? '<div class="verdict-bar-wrap"><div class="verdict-bar-label">模块判决分布</div>'+
+      (total > 0 ? '<div class="verdict-bar-wrap"><div class="verdict-bar-label">'+(L.verdict_distribution||'Verdict Distribution')+'</div>'+
         '<div class="verdict-bar">'+barHtml+'</div>'+
         '<div class="verdict-legend">'+legendHtml+'</div></div>' : '')+
-      (hasLink ? '<div class="open-hint">点击查看详细报告 →</div>' : '')+
+      (hasLink ? '<div class="open-hint">'+(L.click_detail||'Click for details')+' →</div>' : '')+
       (hasLink ? '</a>' : '</div>');
   }).join('');
 }
@@ -330,10 +339,10 @@ function renderModules() {
     h += '</div>';
     if (m.path) h += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">📂 '+m.path+'</div>';
     if (m.function) h += '<div style="font-size:13px;margin-bottom:6px">'+m.function+'</div>';
-    if (m.coreClasses) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">核心类: </span>'+m.coreClasses+'</div>';
-    if (m.deps) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">依赖: </span>'+m.deps+'</div>';
-    if (m.thirdParty) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">三方库: </span>'+m.thirdParty+'</div>';
-    if (m.codeSize) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">体量: </span>'+m.codeSize+'</div>';
+    if (m.coreClasses) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">'+(L.field_core_cls||'Core Classes')+': </span>'+m.coreClasses+'</div>';
+    if (m.deps) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">'+(L.field_dep_rel||'Dependencies')+': </span>'+m.deps+'</div>';
+    if (m.thirdParty) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">'+(L.field_third_lib||'Third-Party')+': </span>'+m.thirdParty+'</div>';
+    if (m.codeSize) h += '<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--text-dim)">'+(L.field_code_size||'Code Size')+': </span>'+m.codeSize+'</div>';
     if (m.quality) h += '<div style="font-size:12px;margin-bottom:4px">'+m.quality+'</div>';
     h += '</div>';
   });
@@ -344,7 +353,7 @@ function renderTriage() {
   var triage = REPORT.triage || [];
   if (!triage.length) return;
   document.getElementById('triageSection').style.display = '';
-  var h = '<thead><tr><th>模块/目录</th><th>核心功能</th><th>三方依赖</th><th>上下游依赖</th><th>活跃度</th><th>质量点评</th><th>判决</th></tr></thead><tbody>';
+  var h = '<thead><tr><th>'+(L.col_module||'Module')+'</th><th>'+(L.col_function||'Core Function')+'</th><th>'+(L.col_third_party||'Third-Party Deps')+'</th><th>'+(L.col_deps||'Dependencies')+'</th><th>'+(L.col_activity||'Activity')+'</th><th>'+(L.col_quality||'Quality')+'</th><th>'+(L.col_verdict||'Verdict')+'</th></tr></thead><tbody>';
   triage.forEach(function(t) {
     var vc = verdictClass(t.verdict);
     h += '<tr><td><strong>'+t.module+'</strong></td><td>'+t.function+'</td><td>'+t.thirdParty+'</td><td>'+t.deps+'</td><td>'+t.activity+'</td><td>'+t.quality+'</td><td class="verdict-'+vc+'">'+t.verdict+'</td></tr>';
@@ -363,12 +372,12 @@ function renderDeep() {
   document.getElementById('deepSection').style.display = '';
   var h = '';
   var sections = [
-    {key:'files', title:'精读文件清单', cls:'deep-files'},
-    {key:'threadSafety', title:'线程安全评估', cls:''},
-    {key:'memory', title:'内存管理评估', cls:''},
-    {key:'errorHandling', title:'错误处理评估', cls:''},
-    {key:'apiConsistency', title:'API 设计一致性', cls:''},
-    {key:'extraFindings', title:'Deep 级补充发现', cls:''},
+    {key:'files', title:L.deep_files||'Files Read', cls:'deep-files'},
+    {key:'threadSafety', title:L.deep_thread||'Thread Safety', cls:''},
+    {key:'memory', title:L.deep_memory||'Memory Management', cls:''},
+    {key:'errorHandling', title:L.deep_error||'Error Handling', cls:''},
+    {key:'apiConsistency', title:L.deep_api||'API Consistency', cls:''},
+    {key:'extraFindings', title:L.deep_extra||'Deep Supplementary Findings', cls:''},
   ];
   sections.forEach(function(sec) {
     var items = d[sec.key];
@@ -382,7 +391,7 @@ function renderDeep() {
   var vr = d.verdictRevision;
   if (vr && vr.length) {
     h += '<div class="deep-subsection" style="border:1px solid var(--red);border-radius:8px;padding:16px;background:rgba(248,81,73,0.05)">';
-    h += '<h4 style="color:var(--red);border-bottom-color:var(--red)"><span class="deep-badge" style="border-color:var(--red);color:var(--red);background:rgba(248,81,73,0.15)">REVISED</span>判决修正</h4>';
+    h += '<h4 style="color:var(--red);border-bottom-color:var(--red)"><span class="deep-badge" style="border-color:var(--red);color:var(--red);background:rgba(248,81,73,0.15)">REVISED</span>'+(L.deep_revised||'Verdict Revisions')+'</h4>';
     h += '<ul>';
     vr.forEach(function(item) { h += '<li>' + item + '</li>'; });
     h += '</ul></div>';
@@ -404,14 +413,14 @@ function renderCross() {
 
   if (overlaps.length) {
     var hasCount = overlaps[0].count !== undefined;
-    h += '<h4>能力重叠地图</h4>';
+    h += '<h4>'+(L.cross_overlap||'Capability Overlap Map')+'</h4>';
     if (hasCount) {
-      h += '<table class="cross-table overlap-cols-4"><thead><tr><th>能力域</th><th>重复模块</th><th>重复次数</th><th>建议合并路径</th></tr></thead><tbody>';
+      h += '<table class="cross-table overlap-cols-4"><thead><tr><th>'+(L.col_function||'Capability')+'</th><th>'+(L.col_module||'Modules')+'</th><th>Count</th><th>Suggestion</th></tr></thead><tbody>';
       h += overlaps.map(function(o){
         return '<tr><td><strong>'+o.capability+'</strong></td><td>'+o.modules+'</td><td style="color:var(--red);font-weight:600">'+o.count+'</td><td>'+o.suggestion+'</td></tr>';
       }).join('');
     } else {
-      h += '<table class="cross-table overlap-cols"><thead><tr><th>能力域</th><th>重复模块</th><th>建议合并路径</th></tr></thead><tbody>';
+      h += '<table class="cross-table overlap-cols"><thead><tr><th>'+(L.col_function||'Capability')+'</th><th>'+(L.col_module||'Modules')+'</th><th>Suggestion</th></tr></thead><tbody>';
       h += overlaps.map(function(o){
         return '<tr><td><strong>'+o.capability+'</strong></td><td><code>'+o.modules+'</code></td><td>'+o.suggestion+'</td></tr>';
       }).join('');
@@ -420,8 +429,8 @@ function renderCross() {
   }
 
   if (topology.length) {
-    h += '<h4>依赖拓扑</h4>';
-    h += '<table class="cross-table topo-cols"><thead><tr><th>层级</th><th>模块</th><th>被依赖次数</th><th>说明</th></tr></thead><tbody>';
+    h += '<h4>'+(L.cross_topology||'Dependency Topology')+'</h4>';
+    h += '<table class="cross-table topo-cols"><thead><tr><th>Level</th><th>'+(L.col_module||'Module')+'</th><th>Dependents</th><th>Note</th></tr></thead><tbody>';
     h += topology.map(function(t){
       return '<tr><td><strong>'+t.level+'</strong></td><td><code>'+t.module+'</code></td><td>'+t.dependents+'</td><td>'+t.note+'</td></tr>';
     }).join('');
@@ -429,8 +438,8 @@ function renderCross() {
   }
 
   if (revisions.length) {
-    h += '<h4>修正判决</h4>';
-    h += '<table class="cross-table revision-cols"><thead><tr><th>模块</th><th>原判决</th><th>修正为</th><th>理由</th></tr></thead><tbody>';
+    h += '<h4>'+(L.cross_revision||'Verdict Revisions')+'</h4>';
+    h += '<table class="cross-table revision-cols"><thead><tr><th>'+(L.col_module||'Module')+'</th><th>Original</th><th>Revised</th><th>Reason</th></tr></thead><tbody>';
     h += revisions.map(function(r){
       return '<tr><td><strong>'+r.module+'</strong></td>'+
         '<td class="verdict-'+verdictClass(r.original)+'">'+r.original+'</td>'+
@@ -441,7 +450,7 @@ function renderCross() {
   }
 
   if (actions.length) {
-    h += '<h4>重构行动优先级</h4><ol class="action-list">';
+    h += '<h4>'+(L.cross_actions||'Refactoring Priority')+'</h4><ol class="action-list">';
     h += actions.map(function(a, i){
       return '<li><span class="action-num">'+(i+1)+'</span><span>'+a+'</span></li>';
     }).join('');
@@ -450,8 +459,8 @@ function renderCross() {
 
   var bugs = REPORT.bugs || [];
   if (bugs.length) {
-    h += '<h4>共性Bug模式（Deep分析发现）</h4>';
-    h += '<table class="cross-table"><thead><tr><th>Bug模式</th><th>涉及模块</th><th>风险等级</th><th>说明</th></tr></thead><tbody>';
+    h += '<h4>'+(L.cross_bugs||'Common Bug Patterns (Deep)')+'</h4>';
+    h += '<table class="cross-table"><thead><tr><th>Pattern</th><th>'+(L.col_module||'Modules')+'</th><th>Severity</th><th>Note</th></tr></thead><tbody>';
     h += bugs.map(function(b){
       var sevColor = b.severity.indexOf('高')>=0?'var(--red)':b.severity.indexOf('中')>=0?'var(--yellow)':'var(--text-dim)';
       return '<tr><td><strong>'+b.pattern+'</strong></td><td>'+b.modules+'</td><td style="color:'+sevColor+';font-weight:600">'+b.severity+'</td><td>'+b.note+'</td></tr>';
@@ -461,8 +470,8 @@ function renderCross() {
 
   var risks = REPORT.risks || [];
   if (risks.length) {
-    h += '<h4>全局关键风险</h4>';
-    h += '<table class="cross-table revision-cols"><thead><tr><th>风险</th><th>严重度</th><th>涉及范围</th><th>建议</th></tr></thead><tbody>';
+    h += '<h4>'+(L.cross_risks||'Global Critical Risks')+'</h4>';
+    h += '<table class="cross-table revision-cols"><thead><tr><th>Risk</th><th>Severity</th><th>Scope</th><th>Suggestion</th></tr></thead><tbody>';
     h += risks.map(function(r){
       var sevColor = r.severity.indexOf('严重')>=0?'var(--red)':r.severity.indexOf('高')>=0?'var(--red)':r.severity.indexOf('中')>=0?'var(--yellow)':'var(--text-dim)';
       return '<tr><td>'+r.risk+'</td><td style="color:'+sevColor+';font-weight:600">'+r.severity+'</td><td>'+r.scope+'</td><td>'+r.suggestion+'</td></tr>';
@@ -478,9 +487,9 @@ function renderSummary() {
   if (!s || (!s.profile && !s.risks && !s.actions)) return;
   document.getElementById('summarySection').style.display = '';
   var h = '';
-  if (s.profile) { h += '<h3>整体画像</h3><ul>'+s.profile.map(function(p){return '<li>'+p+'</li>';}).join('')+'</ul>'; }
-  if (s.risks)   { h += '<h3 style="color:var(--red)">关键风险</h3><ul>'+s.risks.map(function(r){return '<li class="risk">'+r+'</li>';}).join('')+'</ul>'; }
-  if (s.actions) { h += '<h3 style="color:var(--green)">优先行动建议</h3><ul>'+s.actions.map(function(a){return '<li class="action">'+a+'</li>';}).join('')+'</ul>'; }
+  if (s.profile) { h += '<h3>'+(L.summary_profile||'Project Profile')+'</h3><ul>'+s.profile.map(function(p){return '<li>'+p+'</li>';}).join('')+'</ul>'; }
+  if (s.risks)   { h += '<h3 style="color:var(--red)">'+(L.summary_risks||'Key Risks')+'</h3><ul>'+s.risks.map(function(r){return '<li class="risk">'+r+'</li>';}).join('')+'</ul>'; }
+  if (s.actions) { h += '<h3 style="color:var(--green)">'+(L.summary_actions||'Priority Actions')+'</h3><ul>'+s.actions.map(function(a){return '<li class="action">'+a+'</li>';}).join('')+'</ul>'; }
   document.getElementById('summaryBody').innerHTML = h;
 }
 
@@ -497,29 +506,30 @@ function renderDualScan() {
 
   // ── Quick stats ──
   h += '<div class="dual-summary-card">';
-  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--accent)">' + total + '</div><div class="ds-lbl">验证模块数</div></div>';
-  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--green)">' + agreeCount + '</div><div class="ds-lbl">判决一致</div></div>';
-  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--red)">' + disagreeCount + '</div><div class="ds-lbl">判决分歧</div></div>';
-  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--yellow)">' + (ds.agreeRate || '—') + '</div><div class="ds-lbl">一致率</div></div>';
+  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--accent)">' + total + '</div><div class="ds-lbl">'+(L.stat_modules||'Modules Verified')+'</div></div>';
+  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--green)">' + agreeCount + '</div><div class="ds-lbl">'+(L.stat_agree||'Agreed')+'</div></div>';
+  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--red)">' + disagreeCount + '</div><div class="ds-lbl">'+(L.stat_disagree||'Disputed')+'</div></div>';
+  h += '<div class="dual-summary-stat"><div class="ds-val" style="color:var(--yellow)">' + (ds.agreeRate || '—') + '</div><div class="ds-lbl">'+(L.stat_agree_rate||'Agreement Rate')+'</div></div>';
   h += '</div>';
 
   if (ds.systemicFinding) {
     h += '<div style="padding:12px 16px;border-radius:8px;border:1px solid var(--yellow);background:rgba(210,153,34,0.06);margin-bottom:16px;font-size:13px;line-height:1.6">';
-    h += '<strong style="color:var(--yellow)">&#9888; 系统性发现：</strong>' + ds.systemicFinding + '</div>';
+    h += '<strong style="color:var(--yellow)">&#9888; '+(L.systemic_finding||'Systemic Finding')+'：</strong>' + ds.systemicFinding + '</div>';
   }
 
-  h += '<p style="font-size:13px;color:var(--text-dim);margin-bottom:16px">双扫描交叉验证的完整对比报告（含每模块 Agent-1 vs Agent-2 逐项分析）已独立为专用页面。</p>';
-  h += '<a class="dual-open-link" href="dual-scan.html">&#9878; 打开完整双扫描对比报告 &rarr;</a>';
+  h += '<p style="font-size:13px;color:var(--text-dim);margin-bottom:16px">'+(L.dual_desc||'The full dual-scan comparison report is on a separate page.')+'</p>';
+  h += '<a class="dual-open-link" href="dual-scan.html">&#9878; '+(L.open_dual_report||'Open Full Dual-Scan Report')+' &rarr;</a>';
 
   document.getElementById('dualScanBody').innerHTML = h;
 }
 
 function verdictClass(v) {
   if (!v) return 'core';
-  if (v.indexOf('基石')>=0) return 'core';
-  if (v.indexOf('合并')>=0) return 'merge';
-  if (v.indexOf('重塑')>=0) return 'rebuild';
-  if (v.indexOf('淘汰')>=0) return 'retire';
+  v = v.toLowerCase();
+  if (v.indexOf('基石')>=0 || v.indexOf('core')>=0) return 'core';
+  if (v.indexOf('合并')>=0 || v.indexOf('merge')>=0 || v.indexOf('purif')>=0) return 'merge';
+  if (v.indexOf('重塑')>=0 || v.indexOf('reshape')>=0 || v.indexOf('rebuild')>=0) return 'rebuild';
+  if (v.indexOf('淘汰')>=0 || v.indexOf('retire')>=0 || v.indexOf('discard')>=0) return 'retire';
   return 'core';
 }
 function toggleSection(header) { header.parentElement.classList.toggle('collapsed'); }

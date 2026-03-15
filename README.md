@@ -7,43 +7,48 @@
 
 **English** | [中文](README_zh.md)
 
-> An Agent Skill for architecture-level, cross-tech-stack source code asset scanning and analysis.
+> Every ecosystem has its own dependency manager, but **no tool looks across C++, Android, iOS, and Web to tell you: how much code is actually yours, what's third-party, and what's dead weight.**
 >
-> Every ecosystem has its own dependency manager, but **no tool looks across all stacks and tells you: how much code is actually yours.** Know what you have before you refactor.
->
-> Generates interactive local HTML reports — no internet required. Monorepo support with hierarchical scanning: click a card on the summary page to drill into sub-project details.
+> **repo-scan** gives you the answer — a cross-stack source code asset audit that classifies every file, identifies every dependency, and delivers an actionable verdict for each module. One command, zero dependencies, interactive HTML report.
 
-![repo-scan banner](images/banner.jpg)
+![repo-scan banner](images/banner-en.png)
 
 ---
 
-## Who Needs It
+## The Problem
 
-- **Large projects / Monorepo teams** — Years of accumulated modules, need a quick global asset inventory
-- **Cross-platform teams** — Electron, React Native, Flutter or custom cross-platform — multiple tech stacks, no unified view
-- **Architects / Tech leads** — Need a data-driven asset ledger before refactoring, merging, or commercialization decisions
-- **Native developers (C/C++, iOS, Android)** — Third-party libs scattered in source dirs, no unified dependency tracking
-- **Anyone inheriting legacy code** — Step one is "what's here", not "what to change"
+You're staring at a monorepo with 200+ directories, 50,000 files, four tech stacks, and third-party code mixed into source folders. Before you can refactor, merge, or make any architectural decision, you need answers:
 
----
+- Which modules are **core assets** worth investing in?
+- Which are **duplicate wheels** that should be merged?
+- Which haven't been touched in **3 years** and should be retired?
+- Where are the **hidden third-party libs** with no version tracking?
 
-## What It Does
+Running `cloc` gives you line counts. Running dependency scanners gives you one stack at a time. **repo-scan gives you the full picture — across all stacks, in one pass.**
 
-**repo-scan** performs a complete asset inventory of your codebase. Python 3, zero dependencies, one command.
+## What Sets It Apart
 
-### Core Features
+| | Traditional tools | repo-scan |
+|---|---|---|
+| **Scope** | Single language/ecosystem | C/C++, Java/Android, iOS, Web — unified |
+| **Third-party detection** | Declared deps only | Source-embedded libs too (50+ known libraries) |
+| **Output** | Raw metrics | Actionable 4-level verdicts per module |
+| **Monorepo** | Flat file list | Hierarchical scan with drill-down HTML |
+| **AI-native** | N/A | Designed as Agent Skill with token-efficient analysis |
 
-- **Three-way classification** — Automatically categorizes files into **project code** / **third-party dependencies** / **build artifacts** with accurate size metrics
-- **Third-party detection & versioning** — Auto-identifies 50+ known libraries (FFmpeg, Boost, OpenSSL, etc.) and extracts version info from VERSION files, header `#define`s, `package.json`, `CMakeLists.txt`, etc.
-- **Four tech stacks** — C/C++, Java/Android, iOS (OC/Swift), Web (TS/JS/Vue) — all covered
-- **Code duplication detection** — Finds duplicate directory names across the project, auto-excludes third-party false positives
-- **Git activity analysis** — Auto-discovers all sub-repositories with commit history and activity levels
-- **Hierarchical report output** — Large monorepos auto-split into `index.html` + sub-project reports, keeping AI context manageable
-- **Cross-module review** — After all sub-projects are analyzed, a second pass identifies capability overlaps, dependency topology, verdict corrections, and refactoring priorities
-- **Interactive HTML reports** — Auto-generated dark-theme local pages; hierarchical mode creates `index.html` with clickable cards linking to sub-project details
-- **Three analysis depth levels** — `fast` / `standard` / `deep` to balance speed vs. thoroughness
-- **Incremental deep analysis** — `deep` mode works on top of existing `standard` data, selectively analyzing high-value modules with thread safety, memory management, error handling, and API consistency checks
-- **AI token efficiency** — "Filename inference → key file reading → quality sampling" three-layer strategy, no exhaustive file reading
+## Core Capabilities
+
+- **Cross-stack unified view** — C/C++, Java/Android, iOS (OC/Swift), Web (TS/JS/Vue) in a single report
+- **Three-way file classification** — Project code / third-party / build artifacts with accurate size metrics
+- **Third-party detection** — Auto-identifies 50+ libraries (FFmpeg, Boost, OpenSSL...) with version extraction from headers, configs, and package files
+- **Four-level verdicts** — Every module gets a decision: **Core Asset** / **Extract & Merge** / **Rebuild** / **Deprecate**
+- **Cross-module review** — Second-pass analysis finds capability overlaps, dependency topology, verdict corrections, and refactoring priorities
+- **Interactive HTML reports** — Dark-theme local pages; monorepo mode generates `index.html` with clickable project cards and verdict distribution bars
+- **Incremental deep analysis** — `deep` mode adds thread safety, memory management, error handling, and API consistency checks on top of standard data
+- **Hierarchical scanning** — Large monorepos auto-split into summary + sub-project reports, keeping AI context manageable
+- **Code duplication detection** — Finds same-name directories across the project, auto-excludes third-party false positives
+- **Git activity analysis** — Discovers all sub-repos with commit history (which modules haven't been touched in 2 years?)
+- **AI token efficiency** — Three-layer strategy: filename inference → key file reading → quality sampling (no exhaustive reading)
 
 ## Analysis Depth Levels
 
@@ -53,39 +58,81 @@
 | `standard` | 2-5: headers + entry files + build config | Full: deps, architecture, tech debt | Default audit |
 | `deep` | 5-10: adds core implementation, tests, CI | Thread safety, memory, error handling, API consistency | Incremental on top of standard data |
 
-**Deep mode is incremental** — it detects existing scan data, auto-selects high-value modules (Core Asset + Extract & Merge verdicts), and appends detailed analysis. You can also target specific modules:
+**Deep mode is incremental** — it detects existing scan data, auto-selects high-value modules (Core Asset + Extract & Merge), and appends detailed analysis:
 
 ```
 /repo-scan /path/to/project --level deep                          # auto-select modules
 /repo-scan /path/to/project --level deep --modules base,rtmp_sdk  # specific modules
 ```
 
-## Output
-
-Three-section Markdown audit report + local HTML visualization:
+## Output Sections
 
 | Section | Content |
 |---------|---------|
-| **Architecture Tree** | Real physical directory structure, semantically compressed, third-party and dead code color-coded |
-| **Module Descriptions** | Function, core class names, dependencies, third-party references (with version assessment), code quality, four-level verdict |
-| **Asset Triage Table** | Global summary with verdict: **Core Asset** / **Extract & Merge** / **Rebuild** / **Deprecate** |
-| **Cross-Module Review** | Hierarchical mode: capability overlap map, dependency topology, verdict corrections, refactoring priorities |
-| **Deep Analysis** | Incremental: per-file review, thread safety, memory management, error handling, API consistency (with purple DEEP badge) |
+| **Architecture Tree** | Physical directory structure, semantically compressed, third-party and dead code color-coded |
+| **Module Descriptions** | Function, core classes, dependencies, third-party refs (with version assessment), quality, verdict |
+| **Asset Triage Table** | Global summary: **Core Asset** / **Extract & Merge** / **Rebuild** / **Deprecate** |
+| **Cross-Module Review** | Capability overlap map, dependency topology, verdict corrections, refactoring priorities |
+| **Deep Analysis** | Per-file review, thread safety, memory, error handling, API consistency (purple DEEP badge) |
 
-### HTML Report
+![Sub-project overview with verdict distribution and DEEP badges](images/screenshot-overview-en.png)
 
-Auto-generated after scan. Dark theme, interactive, no internet required.
+<details>
+<summary>More screenshots: triage table & deep analysis</summary>
 
-![Statistics overview and architecture tree](images/screenshot-overview.png)
+![Asset triage table with four-level verdicts](images/screenshot-triage-en.png)
 
-![Asset triage table](images/screenshot-triage.png)
+![Deep analysis: per-file review with thread safety and memory checks](images/deep-en.png)
 
-**HTML features:**
-- Statistics cards (sub-project count, source files, verdict distribution)
-- Verdict distribution bars on project cards (green/yellow/purple/red)
-- **DEEP** badges on projects with deep analysis (with count: `DEEP ×3`)
-- Collapsible sections for tree, modules, triage, cross-review, deep analysis
-- Clickable cards linking to sub-project detail pages
+</details>
+
+## Quick Start
+
+### Installation
+
+```bash
+# Global skills directory
+git clone https://github.com/haibindev/repo-scan.git ~/.claude/skills/repo-scan
+
+# Or project-level
+git clone https://github.com/haibindev/repo-scan.git .claude/skills/repo-scan
+```
+
+### As an Agent Skill
+
+```
+/repo-scan /path/to/my-project
+/repo-scan /path/to/my-project --level fast
+/repo-scan /path/to/my-project --level deep
+/repo-scan /path/to/my-project --level deep --modules base,encoder
+```
+
+### Standalone Pre-scan
+
+The pre-scan script (Python 3, zero deps) generates structured Markdown data for AI analysis:
+
+```bash
+python scripts/pre-scan.py /path/to/project                    # stdout
+python scripts/pre-scan.py /path/to/project -o report.md       # single file
+python scripts/pre-scan.py /path/to/project -d ./scan-output   # hierarchical (recommended)
+python scripts/pre-scan.py /path/to/project -c config.json     # custom config
+```
+
+<details>
+<summary>Pre-scan output sections</summary>
+
+| # | Section | Description |
+|---|---------|-------------|
+| 1 | Overall Statistics | Three-way split: project / third-party / build artifacts |
+| 2 | Top-Level Breakdown | File count, size, build system, classification per directory |
+| 3 | Tech Stack Stats | Per-stack source file counts |
+| 4 | Third-Party Deps | Detected libraries with name, version, location, size |
+| 5 | Code Duplication | Directories appearing 3+ times (potential copy-paste) |
+| 6 | Directory Tree | Clean tree with noise filtered and third-party marked |
+| 7 | Git Activity | Commit history and activity for all discovered repos |
+| 8 | Noise Summary | Build artifact sizes aggregated by type |
+
+</details>
 
 ## Project Structure
 
@@ -97,56 +144,13 @@ repo-scan/
 │   └── ignore-patterns.json       # Configurable ignore/recognition patterns
 ├── scripts/
 │   ├── pre-scan.py                # Pre-scan script (Python 3, zero deps)
-│   └── gen_html.py                # HTML generator (Markdown → interactive pages)
+│   ├── gen_html.py                # HTML generator (Markdown → interactive pages)
+│   └── i18n.py                    # Internationalization (auto-detects zh/en)
 └── templates/
-    ├── report.html                # Single project report template (dark theme)
-    └── index.html                 # Multi-project summary template (cards + cross-analysis)
+    ├── report.html                # Single project template (dark theme)
+    ├── index.html                 # Multi-project summary template (cards + cross-analysis)
+    └── dual-scan.html             # Dual-scan cross-validation template
 ```
-
-## Installation
-
-Clone into your Agent's skills directory:
-
-```bash
-# Global skills directory
-git clone https://github.com/haibindev/repo-scan.git ~/.claude/skills/repo-scan
-
-# Or project-level
-git clone https://github.com/haibindev/repo-scan.git .claude/skills/repo-scan
-```
-
-## Usage
-
-### As an Agent Skill
-
-```
-/repo-scan /path/to/my-project
-/repo-scan /path/to/my-project --level fast
-/repo-scan /path/to/my-project --level deep
-/repo-scan /path/to/my-project --level deep --modules base,encoder
-```
-
-### Standalone Pre-scan Script
-
-```bash
-python scripts/pre-scan.py /path/to/project                    # print to stdout
-python scripts/pre-scan.py /path/to/project -o report.md       # single file report
-python scripts/pre-scan.py /path/to/project -d ./scan-output   # hierarchical (recommended for large projects)
-python scripts/pre-scan.py /path/to/project -c config.json     # custom config
-```
-
-### Pre-scan Output Sections
-
-| # | Section | Description |
-|---|---------|-------------|
-| 1 | Overall Statistics | Three-way split: project / third-party / build artifacts |
-| 2 | Top-Level Breakdown | File count, size, build system, classification per directory |
-| 3 | Tech Stack Stats | Per-stack (C/C++, Java, iOS, Web) source file counts |
-| 4 | Third-Party Deps | Detected libraries with name, version, location, size |
-| 5 | Code Duplication | Directories appearing 3+ times (potential copy-paste) |
-| 6 | Directory Tree | Clean tree with noise filtered and third-party marked |
-| 7 | Git Activity | Commit history and activity for all discovered repos |
-| 8 | Noise Summary | Build artifact sizes aggregated by type |
 
 ## Configuration
 
@@ -164,9 +168,6 @@ Edit `config/ignore-patterns.json` to customize patterns:
   "thirdparty_dirs": {
     "container_names": ["vendor", "external", "libs"],
     "known_libs": ["ffmpeg", "boost", "openssl", ...]
-  },
-  "skip_duplicate_names": {
-    "names": ["res", "bin", "src", "include", ...]
   }
 }
 ```

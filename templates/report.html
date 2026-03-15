@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>源码资产审计报告</title>
+<title id="pageTitle">Asset Audit Report</title>
 <style>
   :root {
     --bg: #0d1117; --surface: #161b22; --border: #30363d;
@@ -161,18 +161,18 @@
 <body>
 <div class="container">
   <div class="header">
-    <h1 id="reportTitle">源码资产审计报告</h1>
+    <h1 id="reportTitle"></h1>
     <div class="meta">
-      <span id="scanTarget">目标路径: —</span> &nbsp;|&nbsp;
-      <span id="scanDate">扫描日期: —</span>
-      <span id="scanDates" style="display:none"> &nbsp;|&nbsp; 源码修改: <span id="dateRange"></span></span>
+      <span id="scanTarget"></span> &nbsp;|&nbsp;
+      <span id="scanDate"></span>
+      <span id="scanDates" style="display:none"> &nbsp;|&nbsp; <span id="dateRange"></span></span>
     </div>
     <div class="desc" id="scanDesc"></div>
   </div>
   <div class="stats-grid" id="statsGrid"></div>
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>技术栈分布</h2><span class="toggle">&#9660;</span>
+      <h2 id="secTechStack"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body">
       <div class="stack-bar" id="stackBar"></div>
@@ -187,7 +187,7 @@
   </div>
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>资产总览树</h2><span class="toggle">&#9660;</span>
+      <h2 id="secTree"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body">
       <div class="tree" id="assetTree"></div>
@@ -195,59 +195,50 @@
   </div>
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>模块详情</h2><span class="toggle">&#9660;</span>
+      <h2 id="secModules"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body">
-      <div class="filter-bar" id="filterBar">
-        <button class="filter-btn active" onclick="filterModules('all', this)">全部</button>
-        <button class="filter-btn" onclick="filterModules('核心基石', this)">核心基石</button>
-        <button class="filter-btn" onclick="filterModules('提纯合并', this)">提纯合并</button>
-        <button class="filter-btn" onclick="filterModules('重塑提取', this)">重塑提取</button>
-        <button class="filter-btn" onclick="filterModules('彻底淘汰', this)">彻底淘汰</button>
-      </div>
+      <div class="filter-bar" id="filterBar"></div>
       <div id="moduleList"></div>
     </div>
   </div>
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>资产定级表</h2><span class="toggle">&#9660;</span>
+      <h2 id="secTriage"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body">
       <table class="triage-table triage-cols">
-        <thead><tr>
-          <th>模块/目录</th><th>核心功能</th><th>三方依赖</th>
-          <th>上下游依赖</th><th>活跃度</th><th>质量点评</th><th>判决</th>
-        </tr></thead>
+        <thead id="triageHead"></thead>
         <tbody id="triageBody"></tbody>
       </table>
     </div>
   </div>
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>三方依赖总览</h2><span class="toggle">&#9660;</span>
+      <h2 id="secThirdParty"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body">
       <table class="triage-table deps-cols">
-        <thead><tr><th>库名</th><th>版本</th><th>位置</th><th>体积</th><th>引用模块</th><th>用途</th><th>评估</th></tr></thead>
+        <thead id="depsHead"></thead>
         <tbody id="depsBody"></tbody>
       </table>
     </div>
   </div>
   <div class="section" id="deepSection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)" style="border-left: 3px solid var(--purple);">
-      <h2><span style="background:linear-gradient(135deg,var(--purple),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DEEP</span> 深度分析</h2><span class="toggle">&#9660;</span>
+      <h2><span style="background:linear-gradient(135deg,var(--purple),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DEEP</span> <span id="secDeep"></span></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body" id="deepBody"></div>
   </div>
   <div class="section" id="dualScanSection" style="display:none">
     <div class="section-header" onclick="toggleSection(this)" style="border-left: 3px solid var(--green);">
-      <h2><span style="background:linear-gradient(135deg,var(--green),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DUAL</span> 双扫描交叉验证</h2><span class="toggle">&#9660;</span>
+      <h2><span style="background:linear-gradient(135deg,var(--green),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700">DUAL</span> <span id="secDual"></span></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body" id="dualScanBody"></div>
   </div>
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
-      <h2>审计总结</h2><span class="toggle">&#9660;</span>
+      <h2 id="secSummary"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body summary" id="summaryBody"></div>
   </div>
@@ -258,19 +249,45 @@
 const REPORT = {};
 // __REPORT_END__
 
+var L = REPORT.LANG || {};
+
 function init() {
-  document.getElementById('reportTitle').innerHTML = (REPORT.title || '源码资产审计报告') +
+  document.title = L.title_report || 'Asset Audit Report';
+  document.getElementById('reportTitle').innerHTML = (REPORT.title || L.title_report || 'Asset Audit Report') +
     (REPORT.hasDeep ? ' <span class="deep-badge" style="font-size:13px;vertical-align:middle">DEEP</span>' : '') +
     (REPORT.hasDualScan ? ' <span class="dual-badge" style="font-size:13px;vertical-align:middle">DUAL</span>' : '');
-  document.getElementById('scanTarget').textContent = '目标路径: ' + (REPORT.target || '—');
-  document.getElementById('scanDate').textContent = '扫描日期: ' + (REPORT.date || '—');
+  document.getElementById('scanTarget').textContent = (L.target_path||'Target') + ': ' + (REPORT.target || '—');
+  document.getElementById('scanDate').textContent = (L.scan_date||'Scan Date') + ': ' + (REPORT.date || '—');
   if (REPORT.oldestSource || REPORT.newestSource) {
     var range = (REPORT.oldestSource||'?') + ' ~ ' + (REPORT.newestSource||'?');
     document.getElementById('dateRange').textContent = range;
     document.getElementById('scanDates').style.display = '';
   }
   if (REPORT.desc) document.getElementById('scanDesc').textContent = REPORT.desc;
+  // Section titles
+  var _st = function(id,key,fb){ var e=document.getElementById(id); if(e) e.textContent=L[key]||fb; };
+  _st('secTechStack','sec_tech_stack','Tech Stack Distribution');
+  _st('secTree','sec_tree','Asset Tree');
+  _st('secModules','sec_module_details','Module Details');
+  _st('secTriage','sec_triage','Asset Triage Table');
+  _st('secThirdParty','sec_third_party','Third-Party Dependencies');
+  _st('secDeep','sec_deep','Deep Analysis');
+  _st('secDual','sec_dual','Dual-Scan');
+  _st('secSummary','sec_summary','Audit Summary');
+  // Triage table header
+  document.getElementById('triageHead').innerHTML = '<tr><th>'+(L.col_module||'Module')+'</th><th>'+(L.col_function||'Core Function')+'</th><th>'+(L.col_third_party||'Third-Party Deps')+'</th><th>'+(L.col_deps||'Dependencies')+'</th><th>'+(L.col_activity||'Activity')+'</th><th>'+(L.col_quality||'Quality')+'</th><th>'+(L.col_verdict||'Verdict')+'</th></tr>';
+  // Deps table header
+  document.getElementById('depsHead').innerHTML = '<tr><th>'+(L.col_lib_name||'Library')+'</th><th>'+(L.col_version||'Version')+'</th><th>'+(L.col_location||'Location')+'</th><th>'+(L.col_size||'Size')+'</th><th>'+(L.col_ref_modules||'Used By')+'</th><th>'+(L.col_usage||'Usage')+'</th><th>'+(L.col_assessment||'Assessment')+'</th></tr>';
+  // Filter bar
+  renderFilterBar();
   renderStats(); renderStackBar(); renderTree(); renderModules(); renderTriage(); renderDeps(); renderDeep(); renderDualScan(); renderSummary();
+}
+function renderFilterBar() {
+  var vLabels = [L.verdict_core||'Core',L.verdict_merge||'Purify & Merge',L.verdict_rebuild||'Reshape',L.verdict_retire||'Retire'];
+  var vKeys = ['core','merge','rebuild','retire'];
+  var h = '<button class="filter-btn active" onclick="filterModules(\'all\', this)">'+(L.filter_all||'All')+'</button>';
+  vLabels.forEach(function(label,i){ h += '<button class="filter-btn" data-vkey="'+vKeys[i]+'" onclick="filterModules(\''+vKeys[i]+'\', this)">'+label+'</button>'; });
+  document.getElementById('filterBar').innerHTML = h;
 }
 function renderStats() {
   document.getElementById('statsGrid').innerHTML = (REPORT.stats||[]).map(s =>
@@ -283,21 +300,21 @@ function renderStackBar() {
   document.getElementById('stackBar').innerHTML = segs.map(function(x){
     return '<div class="'+x.cls+' seg" style="width:'+x.val+'%">'+(x.val>=5?x.label+' '+x.val+'%':'')+'</div>';}).join('');
 }
-function renderTree() { document.getElementById('assetTree').innerHTML = REPORT.tree || '暂无数据'; }
+function renderTree() { document.getElementById('assetTree').innerHTML = REPORT.tree || (L.no_data||'No data'); }
 function renderModules() {
   document.getElementById('moduleList').innerHTML = (REPORT.modules||[]).map(function(m){
     var vc = verdictClass(m.verdict);
-    return '<div class="module-card" data-verdict="'+m.verdict+'"><div class="module-title" onclick="this.parentElement.classList.toggle(\'open\')">'+
+    return '<div class="module-card" data-vkey="'+vc+'"><div class="module-title" onclick="this.parentElement.classList.toggle(\'open\')">'+
       '<h3>'+m.name+' <span style="color:var(--text-dim);font-weight:400;font-size:13px">'+(m.path||'')+'</span></h3>'+
       '<span class="badge badge-'+vc+'">'+m.verdict+'</span></div>'+
       '<div class="module-detail"><table>'+
-      '<tr><td>功能全貌</td><td>'+(m.function||'—')+'</td></tr>'+
-      '<tr><td>核心代码模块</td><td>'+(m.coreClasses||'—')+'</td></tr>'+
-      '<tr><td>模块间依赖</td><td>'+(m.deps||'—')+'</td></tr>'+
-      '<tr><td>三方库引用</td><td>'+(m.thirdParty||'—')+'</td></tr>'+
-      '<tr><td>代码体量</td><td>'+(m.codeSize||'—')+'</td></tr>'+
-      '<tr><td>质量评估</td><td>'+(m.quality||'—')+'</td></tr>'+
-      '<tr><td>活跃度</td><td>'+(m.activity||'—')+'</td></tr>'+
+      '<tr><td>'+(L.field_function||'Capabilities')+'</td><td>'+(m.function||'—')+'</td></tr>'+
+      '<tr><td>'+(L.field_core_classes||'Core Code Modules')+'</td><td>'+(m.coreClasses||'—')+'</td></tr>'+
+      '<tr><td>'+(L.field_deps||'Dependencies')+'</td><td>'+(m.deps||'—')+'</td></tr>'+
+      '<tr><td>'+(L.field_third_party||'Third-Party Libs')+'</td><td>'+(m.thirdParty||'—')+'</td></tr>'+
+      '<tr><td>'+(L.field_code_size||'Code Size')+'</td><td>'+(m.codeSize||'—')+'</td></tr>'+
+      '<tr><td>'+(L.field_quality||'Quality Assessment')+'</td><td>'+(m.quality||'—')+'</td></tr>'+
+      '<tr><td>'+(L.field_activity||'Activity')+'</td><td>'+(m.activity||'—')+'</td></tr>'+
       '</table></div></div>';}).join('');
 }
 function renderTriage() {
@@ -317,12 +334,12 @@ function renderDeep() {
   document.getElementById('deepSection').style.display = '';
   var h = '';
   var sections = [
-    {key:'files', title:'精读文件清单', cls:'deep-files'},
-    {key:'threadSafety', title:'线程安全评估', cls:''},
-    {key:'memory', title:'内存管理评估', cls:''},
-    {key:'errorHandling', title:'错误处理评估', cls:''},
-    {key:'apiConsistency', title:'API 设计一致性', cls:''},
-    {key:'extraFindings', title:'Deep 级补充发现', cls:''},
+    {key:'files', title:L.deep_files||'Files Read', cls:'deep-files'},
+    {key:'threadSafety', title:L.deep_thread||'Thread Safety', cls:''},
+    {key:'memory', title:L.deep_memory||'Memory Management', cls:''},
+    {key:'errorHandling', title:L.deep_error||'Error Handling', cls:''},
+    {key:'apiConsistency', title:L.deep_api||'API Consistency', cls:''},
+    {key:'extraFindings', title:L.deep_extra||'Deep Supplementary Findings', cls:''},
   ];
   sections.forEach(function(sec) {
     var items = d[sec.key];
@@ -333,11 +350,10 @@ function renderDeep() {
     items.forEach(function(item) { h += '<li>' + item + '</li>'; });
     h += '</ul></div>';
   });
-  // 判决修正（特殊样式）
   var vr = d.verdictRevision;
   if (vr && vr.length) {
     h += '<div class="deep-subsection" style="border:1px solid var(--red);border-radius:8px;padding:16px;background:rgba(248,81,73,0.05)">';
-    h += '<h4 style="color:var(--red);border-bottom-color:var(--red)"><span class="deep-badge" style="border-color:var(--red);color:var(--red);background:rgba(248,81,73,0.15)">REVISED</span>判决修正</h4>';
+    h += '<h4 style="color:var(--red);border-bottom-color:var(--red)"><span class="deep-badge" style="border-color:var(--red);color:var(--red);background:rgba(248,81,73,0.15)">REVISED</span>'+(L.deep_revised||'Verdict Revisions')+'</h4>';
     h += '<ul>';
     vr.forEach(function(item) { h += '<li>' + item + '</li>'; });
     h += '</ul></div>';
@@ -352,28 +368,28 @@ function renderDualScan() {
   // 验证概况
   if (ds.overview && ds.overview.agreeRate) {
     h += '<div style="margin-bottom:20px;padding:12px 16px;background:rgba(63,185,80,0.08);border-radius:6px;font-size:14px">';
-    h += '<strong>判决一致率：</strong>' + ds.overview.agreeRate;
+    h += '<strong>'+(L.stat_agree_rate||'Agreement Rate')+'：</strong>' + ds.overview.agreeRate;
     h += '</div>';
   }
   // 判决对比表
   if (ds.comparisons && ds.comparisons.length) {
-    h += '<h4 style="margin-bottom:12px;color:var(--accent)">判决对比</h4>';
+    h += '<h4 style="margin-bottom:12px;color:var(--accent)">'+(L.sec_comp_table||'Comparison Table')+'</h4>';
     h += '<table class="triage-table" style="margin-bottom:24px"><thead><tr>';
-    h += '<th style="width:20%">模块</th><th style="width:20%">Agent-1</th><th style="width:20%">Agent-2</th>';
-    h += '<th style="width:20%">最终判决</th><th style="width:20%">一致性</th></tr></thead><tbody>';
+    h += '<th style="width:20%">'+(L.col_module||'Module')+'</th><th style="width:20%">Agent-1</th><th style="width:20%">Agent-2</th>';
+    h += '<th style="width:20%">'+(L.col_verdict||'Final')+'</th><th style="width:20%">Agreement</th></tr></thead><tbody>';
     ds.comparisons.forEach(function(c) {
       var vc = verdictClass(c.final);
       h += '<tr><td><strong>' + c.module + '</strong></td>';
       h += '<td class="verdict verdict-' + verdictClass(c.agent1) + '">' + c.agent1 + '</td>';
       h += '<td class="verdict verdict-' + verdictClass(c.agent2) + '">' + c.agent2 + '</td>';
       h += '<td class="verdict verdict-' + vc + '">' + c.final + '</td>';
-      h += '<td class="' + (c.agree ? 'agree-yes' : 'agree-no') + '">' + (c.agree ? '✓ 一致' : '✗ 分歧') + '</td></tr>';
+      h += '<td class="' + (c.agree ? 'agree-yes' : 'agree-no') + '">' + (c.agree ? '✓ '+(L.stat_agree||'Agreed') : '✗ '+(L.stat_disagree||'Disputed')) + '</td></tr>';
     });
     h += '</tbody></table>';
   }
   // 发现对比明细
   if (ds.findings && Object.keys(ds.findings).length) {
-    h += '<h4 style="margin-bottom:12px;color:var(--accent)">发现对比明细</h4>';
+    h += '<h4 style="margin-bottom:12px;color:var(--accent)">'+(L.sec_unique_findings||'Findings')+'</h4>';
     Object.keys(ds.findings).forEach(function(mod) {
       h += '<div style="margin-bottom:16px"><h5 style="font-size:14px;color:var(--text);margin-bottom:8px">' + mod + '</h5><ul style="padding-left:20px">';
       ds.findings[mod].forEach(function(f) {
@@ -385,7 +401,7 @@ function renderDualScan() {
   }
   // 分歧解析
   if (ds.disputes && ds.disputes.length) {
-    h += '<h4 style="margin-bottom:12px;color:var(--yellow)">分歧解析</h4>';
+    h += '<h4 style="margin-bottom:12px;color:var(--yellow)">'+(L.ai_dispute||'Dispute Resolution')+'</h4>';
     ds.disputes.forEach(function(d) {
       h += '<div class="dispute-box"><h5>' + d.module + (d.subtitle ? ' — ' + d.subtitle : '') + '</h5><ul style="padding-left:20px">';
       d.lines.forEach(function(l) { h += '<li style="margin-bottom:4px">' + l + '</li>'; });
@@ -398,25 +414,26 @@ function renderSummary() {
   var s = REPORT.summary;
   if (!s) return;
   var h = '';
-  if (s.profile) { h += '<h3>项目整体画像</h3><ul>'+s.profile.map(function(p){return '<li>'+p+'</li>';}).join('')+'</ul>'; }
-  if (s.risks) { h += '<h3 style="color:var(--red)">关键风险</h3><ul>'+s.risks.map(function(r){return '<li class="risk">'+r+'</li>';}).join('')+'</ul>'; }
-  if (s.actions) { h += '<h3 style="color:var(--green)">优先行动建议</h3><ul>'+s.actions.map(function(a){return '<li class="action">'+a+'</li>';}).join('')+'</ul>'; }
+  if (s.profile) { h += '<h3>'+(L.summary_profile||'Project Profile')+'</h3><ul>'+s.profile.map(function(p){return '<li>'+p+'</li>';}).join('')+'</ul>'; }
+  if (s.risks) { h += '<h3 style="color:var(--red)">'+(L.summary_risks||'Key Risks')+'</h3><ul>'+s.risks.map(function(r){return '<li class="risk">'+r+'</li>';}).join('')+'</ul>'; }
+  if (s.actions) { h += '<h3 style="color:var(--green)">'+(L.summary_actions||'Priority Actions')+'</h3><ul>'+s.actions.map(function(a){return '<li class="action">'+a+'</li>';}).join('')+'</ul>'; }
   document.getElementById('summaryBody').innerHTML = h;
 }
 function verdictClass(v) {
   if (!v) return 'core';
-  if (v.indexOf('基石')>=0) return 'core';
-  if (v.indexOf('合并')>=0) return 'merge';
-  if (v.indexOf('重塑')>=0) return 'rebuild';
-  if (v.indexOf('淘汰')>=0) return 'retire';
+  v = v.toLowerCase();
+  if (v.indexOf('基石')>=0 || v.indexOf('core')>=0) return 'core';
+  if (v.indexOf('合并')>=0 || v.indexOf('merge')>=0 || v.indexOf('purif')>=0) return 'merge';
+  if (v.indexOf('重塑')>=0 || v.indexOf('reshape')>=0 || v.indexOf('rebuild')>=0) return 'rebuild';
+  if (v.indexOf('淘汰')>=0 || v.indexOf('retire')>=0 || v.indexOf('discard')>=0) return 'retire';
   return 'core';
 }
 function toggleSection(header) { header.parentElement.classList.toggle('collapsed'); }
-function filterModules(verdict, btn) {
+function filterModules(vkey, btn) {
   document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
   document.querySelectorAll('.module-card').forEach(function(card){
-    card.style.display = (verdict==='all'||card.dataset.verdict===verdict) ? '' : 'none';});
+    card.style.display = (vkey==='all'||card.dataset.vkey===vkey) ? '' : 'none';});
 }
 init();
 </script>

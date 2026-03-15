@@ -18,6 +18,7 @@ import platform
 import subprocess
 
 from parsers import parse_report, parse_index_report
+from i18n import detect_lang, get_translations
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, '..', 'templates', 'report.html')
@@ -41,8 +42,11 @@ def load_human_decisions(report_dir):
         return None
 
 
-def generate_html(report, template_path, output_path):
+def generate_html(report, template_path, output_path, lang_dict=None):
     """将 REPORT 数据注入 HTML 模板并写出"""
+    if lang_dict:
+        report['LANG'] = lang_dict
+
     with open(template_path, 'r', encoding='utf-8') as f:
         template = f.read()
 
@@ -100,6 +104,11 @@ def main():
 
     report_dir = os.path.dirname(os.path.abspath(args.report))
 
+    # ── 检测语言 ──
+    lang = detect_lang()
+    lang_dict = get_translations(lang)
+    print(f'Language: {lang}')
+
     # ── 双扫描独立页面模式 ──
     if args.dual:
         dual_template = args.template or DUAL_TEMPLATE_PATH
@@ -120,7 +129,7 @@ def main():
         hd = load_human_decisions(report_dir)
         if hd:
             report['humanDecisions'] = hd
-        generate_html(report, dual_template, output)
+        generate_html(report, dual_template, output, lang_dict)
         print(f'双扫描 HTML 已生成: {output}')
         if args.open:
             abs_path = os.path.abspath(output)
@@ -154,14 +163,14 @@ def main():
     if hd:
         report['humanDecisions'] = hd
 
-    generate_html(report, template, output)
-    print(f'HTML 已生成: {output}')
+    generate_html(report, template, output, lang_dict)
+    print(f'HTML generated: {output}')
 
     # index 模式下，若有双扫描数据，自动生成独立的 dual-scan.html
     if is_index and report.get('dualScan') and report['dualScan'].get('moduleDetails'):
         dual_output = os.path.join(report_dir, 'dual-scan.html')
         if os.path.exists(DUAL_TEMPLATE_PATH):
-            generate_html(report, DUAL_TEMPLATE_PATH, dual_output)
+            generate_html(report, DUAL_TEMPLATE_PATH, dual_output, lang_dict)
             ds = report['dualScan']
             details = ds.get('moduleDetails', [])
             agree = sum(1 for d in details if d.get('agree'))

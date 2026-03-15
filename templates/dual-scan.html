@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>双扫描交叉验证报告</title>
+<title id="pageTitle">Dual-Scan Report</title>
 <style>
   :root {
     --bg: #0d1117; --surface: #161b22; --border: #30363d;
@@ -248,10 +248,10 @@
 <body>
 <div class="container">
 
-  <a class="back-link" id="backLink" href="index.html">&larr; 返回总览</a>
+  <a class="back-link" id="backLink" href="index.html">&larr; <span id="backText"></span></a>
 
   <div class="header">
-    <h1 id="reportTitle">双扫描交叉验证报告 <span class="dual-badge">DUAL</span></h1>
+    <h1 id="reportTitle"><span id="titleText"></span> <span class="dual-badge">DUAL</span></h1>
     <div class="meta" id="reportMeta"></div>
   </div>
 
@@ -265,14 +265,14 @@
 
   <div class="section" id="uniqueSection" style="display:none">
     <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-      <h2>Agent-2 独有发现</h2><span class="toggle">&#9660;</span>
+      <h2 id="uniqueTitle"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body" id="uniqueBody"></div>
   </div>
 
   <div class="section" id="tableSection" style="display:none">
     <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-      <h2>完整对比总表</h2><span class="toggle">&#9660;</span>
+      <h2 id="tableTitle"></h2><span class="toggle">&#9660;</span>
     </div>
     <div class="section-body" id="tableBody"></div>
   </div>
@@ -284,14 +284,14 @@
 
 <div class="import-overlay" id="importOverlay">
   <div class="import-box">
-    <h3>导入人工决策</h3>
-    <p>选择之前导出的 <code>human-decisions.json</code> 文件，恢复所有审阅状态。</p>
+    <h3 id="importTitle"></h3>
+    <p id="importDesc"></p>
     <div class="import-drop" id="importDrop" onclick="document.getElementById('importFile').click()">
-      点击选择文件 或 拖拽到此处
+      <span id="importDropText"></span>
     </div>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="doImport(this)">
     <div class="import-actions">
-      <button class="tb-btn" onclick="closeImport()">取消</button>
+      <button class="tb-btn" onclick="closeImport()" id="importCancelBtn"></button>
     </div>
   </div>
 </div>
@@ -300,6 +300,9 @@
 // __REPORT_BEGIN__
 const REPORT = {};
 // __REPORT_END__
+
+// ── LANG shortcut ──
+var L = REPORT.LANG || {};
 
 // ═══════════════════════════════════════════════════════════
 // LocalStorage key (scoped by report target path)
@@ -332,7 +335,18 @@ function setModuleDecision(mod, key, val) {
 // ═══════════════════════════════════════════════════════════
 function init() {
   var ds = REPORT.dualScan;
-  if (!ds) { document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#8b949e">无双扫描数据</div>'; return; }
+  if (!ds) { document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#8b949e">'+(L.no_dual_data||'No dual-scan data')+'</div>'; return; }
+
+  // Static text from LANG
+  document.title = L.title_dual || 'Dual-Scan Report';
+  document.getElementById('titleText').textContent = L.title_dual || 'Dual-Scan Report';
+  document.getElementById('backText').textContent = L.back_to_index || 'Back';
+  document.getElementById('uniqueTitle').textContent = L.sec_unique_findings || 'Agent-2 Unique Findings';
+  document.getElementById('tableTitle').textContent = L.sec_comp_table || 'Full Comparison Table';
+  document.getElementById('importTitle').textContent = L.import_title || 'Import Decisions';
+  document.getElementById('importDesc').textContent = L.import_desc || '';
+  document.getElementById('importDropText').textContent = L.import_drop || 'Click or drag file here';
+  document.getElementById('importCancelBtn').textContent = L.cancel || 'Cancel';
 
   // Merge baked-in human decisions (from gen_html.py) into localStorage if not already present
   if (REPORT.humanDecisions && REPORT.humanDecisions.modules) {
@@ -347,8 +361,8 @@ function init() {
 
   // Meta
   var meta = [];
-  if (REPORT.target) meta.push('目标: ' + REPORT.target);
-  if (ds.date) meta.push('验证日期: ' + ds.date);
+  if (REPORT.target) meta.push((L.target_path||'Target') + ': ' + REPORT.target);
+  if (ds.date) meta.push((L.verify_date||'Date') + ': ' + ds.date);
   document.getElementById('reportMeta').textContent = meta.join(' | ');
 
   var comps = ds.comparisons || [];
@@ -361,11 +375,11 @@ function init() {
 
   // ── Agent cards ──
   var ah = '';
-  ah += '<div class="agent-card a1"><div class="agent-tag">Agent-1 &middot; 主扫描方</div>';
+  ah += '<div class="agent-card a1"><div class="agent-tag">'+(L.agent1_label||'Agent-1')+'</div>';
   ah += '<div class="agent-name">' + esc(ds.agent1.name || 'Agent-1') + '</div>';
   if (ds.agent1.role) ah += '<div class="agent-role">' + esc(ds.agent1.role) + '</div>';
   ah += '</div>';
-  ah += '<div class="agent-card a2"><div class="agent-tag">Agent-2 &middot; 独立验证方</div>';
+  ah += '<div class="agent-card a2"><div class="agent-tag">'+(L.agent2_label||'Agent-2')+'</div>';
   ah += '<div class="agent-name">' + esc(ds.agent2.name || 'Agent-2') + '</div>';
   if (ds.agent2.role) ah += '<div class="agent-role">' + esc(ds.agent2.role) + '</div>';
   ah += '</div>';
@@ -374,17 +388,17 @@ function init() {
   // ── Stats ──
   var total = details.length || comps.length;
   var sh = '';
-  sh += statBox(total, '验证模块数', 'var(--accent)');
-  sh += statBox(agreeCount, '判决一致', 'var(--green)');
-  sh += statBox(disagreeCount, '判决分歧', 'var(--red)');
-  sh += statBox(ds.agreeRate || '—', '一致率', 'var(--yellow)');
-  if (ds.date) sh += statBox(ds.date, '验证日期', 'var(--text-dim)', '15px');
+  sh += statBox(total, L.stat_modules||'Modules', 'var(--accent)');
+  sh += statBox(agreeCount, L.stat_agree||'Agreed', 'var(--green)');
+  sh += statBox(disagreeCount, L.stat_disagree||'Disputed', 'var(--red)');
+  sh += statBox(ds.agreeRate || '—', L.stat_agree_rate||'Rate', 'var(--yellow)');
+  if (ds.date) sh += statBox(ds.date, L.verify_date||'Date', 'var(--text-dim)', '15px');
   document.getElementById('statsRow').innerHTML = sh;
 
   // ── Systemic finding ──
   if (ds.systemicFinding) {
     document.getElementById('systemicBox').innerHTML =
-      '<div class="systemic"><strong>&#9888; 系统性发现：</strong>' + ds.systemicFinding + '</div>';
+      '<div class="systemic"><strong>&#9888; '+(L.systemic_finding||'Systemic')+':</strong> ' + ds.systemicFinding + '</div>';
   }
 
   // ── Verdict bar + change pills ──
@@ -417,13 +431,13 @@ function init() {
   updateToolbar();
 
   // ── Filter bar ──
-  var fh = '<span class="label">筛选：</span>';
-  fh += '<button class="filter-btn active" onclick="filterCards(\'all\',this)">全部 ('+total+')</button>';
-  fh += '<button class="filter-btn" onclick="filterCards(\'disagree\',this)">分歧 ('+disagreeCount+')</button>';
-  fh += '<button class="filter-btn" onclick="filterCards(\'agree\',this)">一致 ('+agreeCount+')</button>';
-  fh += '<button class="filter-btn" onclick="filterCards(\'reviewed\',this)">已审阅</button>';
-  fh += '<button class="filter-btn" onclick="filterCards(\'unreviewed\',this)">未审阅</button>';
-  fh += '<input type="text" class="search-input" placeholder="搜索模块名..." oninput="searchCards(this.value)">';
+  var fh = '';
+  fh += '<button class="filter-btn active" onclick="filterCards(\'all\',this)">'+(L.filter_all||'All')+' ('+total+')</button>';
+  fh += '<button class="filter-btn" onclick="filterCards(\'disagree\',this)">'+(L.filter_disagree||'Disputed')+' ('+disagreeCount+')</button>';
+  fh += '<button class="filter-btn" onclick="filterCards(\'agree\',this)">'+(L.filter_agree||'Agreed')+' ('+agreeCount+')</button>';
+  fh += '<button class="filter-btn" onclick="filterCards(\'reviewed\',this)">'+(L.filter_reviewed||'Reviewed')+'</button>';
+  fh += '<button class="filter-btn" onclick="filterCards(\'unreviewed\',this)">'+(L.filter_unreviewed||'Unreviewed')+'</button>';
+  fh += '<input type="text" class="search-input" placeholder="'+(L.search_placeholder||'Search...')+'" oninput="searchCards(this.value)">';
   document.getElementById('filterBar').innerHTML = fh;
 
   // ── Module cards ──
@@ -471,13 +485,13 @@ function init() {
     mh += '<div class="dm-col dm-col-a1">';
     mh += '<div class="dm-col-header"><span class="tag-a1">Agent-1</span> '+ esc(ds.agent1.name||'') +'</div>';
     var a1 = md.a1 || {};
-    if (a1.codeSize) mh += field('代码体量', a1.codeSize);
-    if (a1.function) mh += field('功能矩阵', a1.function);
-    if (a1.coreClasses) mh += field('核心类', a1.coreClasses);
-    if (a1.deps) mh += field('依赖关系', a1.deps);
-    if (a1.thirdParty) mh += field('三方库', a1.thirdParty);
+    if (a1.codeSize) mh += field(L.field_code_size||'Code Size', a1.codeSize);
+    if (a1.function) mh += field(L.field_function_matrix||'Capabilities', a1.function);
+    if (a1.coreClasses) mh += field(L.field_core_cls||'Core Classes', a1.coreClasses);
+    if (a1.deps) mh += field(L.field_dep_rel||'Dependencies', a1.deps);
+    if (a1.thirdParty) mh += field(L.field_third_lib||'Third-Party', a1.thirdParty);
     if (a1.qualityItems && a1.qualityItems.length) {
-      mh += '<div class="dm-field"><span class="dm-field-label">质量评估</span></div>';
+      mh += '<div class="dm-field"><span class="dm-field-label">'+(L.field_quality||'Quality')+'</span></div>';
       mh += '<ul class="dm-findings-list">';
       a1.qualityItems.forEach(function(q) { mh += '<li>'+q+'</li>'; });
       mh += '</ul>';
@@ -488,15 +502,15 @@ function init() {
     mh += '<div class="dm-col dm-col-a2">';
     mh += '<div class="dm-col-header"><span class="tag-a2">Agent-2</span> '+ esc(ds.agent2.name||'') +'</div>';
     var a2 = md.a2 || {};
-    if (a2.verdictReason) mh += field('判决理由', a2.verdictReason);
+    if (a2.verdictReason) mh += field(L.col_verdict||'Verdict', a2.verdictReason);
     if (a2.findings && a2.findings.length) {
-      mh += '<div class="dm-field"><span class="dm-field-label">关键发现</span></div>';
+      mh += '<div class="dm-field"><span class="dm-field-label">Findings</span></div>';
       mh += '<ol class="dm-findings-list dm-numbered">';
       a2.findings.forEach(function(f) { mh += '<li>'+f+'</li>'; });
       mh += '</ol>';
     }
     if (a2.crossComparison && a2.crossComparison.length) {
-      mh += '<div class="dm-field"><span class="dm-field-label">横向对比</span></div>';
+      mh += '<div class="dm-field"><span class="dm-field-label">Cross-comparison</span></div>';
       mh += '<ul class="dm-findings-list">';
       a2.crossComparison.forEach(function(c) { mh += '<li>'+c+'</li>'; });
       mh += '</ul>';
@@ -509,7 +523,7 @@ function init() {
     if (!isAgree && md.dispute) {
       var dp = md.dispute;
       mh += '<div class="dm-dispute">';
-      mh += '<div class="dm-dispute-title"><span style="color:var(--red);font-weight:700">&#9878;</span> AI 分歧裁决';
+      mh += '<div class="dm-dispute-title"><span style="color:var(--red);font-weight:700">&#9878;</span> '+(L.ai_dispute||'AI Dispute Resolution');
       if (dp.source) mh += ' <span class="dispute-source">'+ esc(dp.source) +'</span>';
       mh += '</div>';
       if (dp.findings && dp.findings.length) {
@@ -526,29 +540,30 @@ function init() {
 
     // ── Human review panel ──
     mh += '<div class="dm-human">';
-    mh += '<div class="dm-human-title">&#9998; 人工审阅</div>';
+    mh += '<div class="dm-human-title">&#9998; '+(L.human_review||'Human Review')+'</div>';
     mh += '<div class="dm-human-row">';
 
     // Override verdict
     mh += '<div class="dm-human-field">';
-    mh += '<label>覆盖判决</label>';
+    mh += '<label>'+(L.override_verdict||'Override Verdict')+'</label>';
     mh += '<select id="sel-'+esc(md.module)+'" onchange="onVerdictChange(\''+esc(md.module)+'\',this.value)">';
-    mh += '<option value="">— 保持 AI 裁决 —</option>';
-    mh += '<option value="核心基石"'+(dec.overrideVerdict==='核心基石'?' selected':'')+'>核心基石</option>';
-    mh += '<option value="提纯合并"'+(dec.overrideVerdict==='提纯合并'?' selected':'')+'>提纯合并</option>';
-    mh += '<option value="重塑提取"'+(dec.overrideVerdict==='重塑提取'?' selected':'')+'>重塑提取</option>';
-    mh += '<option value="彻底淘汰"'+(dec.overrideVerdict==='彻底淘汰'?' selected':'')+'>彻底淘汰</option>';
+    mh += '<option value="">'+(L.keep_ai||'— Keep AI verdict —')+'</option>';
+    var vkeys = [['verdict_core','核心基石'],['verdict_merge','提纯合并'],['verdict_rebuild','重塑提取'],['verdict_retire','彻底淘汰']];
+    vkeys.forEach(function(vk) {
+      var vname = L[vk[0]] || vk[1];
+      mh += '<option value="'+vname+'"'+(dec.overrideVerdict===vname?' selected':'')+'>'+vname+'</option>';
+    });
     mh += '</select></div>';
 
     // Note
     mh += '<div class="dm-human-field dm-human-note">';
-    mh += '<label>备注</label>';
-    mh += '<textarea id="note-'+esc(md.module)+'" placeholder="人工审阅备注..." onblur="onNoteChange(\''+esc(md.module)+'\',this.value)">'+ esc(dec.note||'') +'</textarea>';
+    mh += '<label>'+(L.note||'Notes')+'</label>';
+    mh += '<textarea id="note-'+esc(md.module)+'" placeholder="'+(L.note_placeholder||'Review notes...')+'" onblur="onNoteChange(\''+esc(md.module)+'\',this.value)">'+ esc(dec.note||'') +'</textarea>';
     mh += '</div>';
 
     // Review toggle
     mh += '<div class="dm-human-actions">';
-    mh += '<button class="dm-review-btn'+(isReviewed?' checked':'')+'" id="rbtn-'+esc(md.module)+'" onclick="onReviewToggle(\''+esc(md.module)+'\')">'+(isReviewed?'&#10003; 已审阅':'标记已审阅')+'</button>';
+    mh += '<button class="dm-review-btn'+(isReviewed?' checked':'')+'" id="rbtn-'+esc(md.module)+'" onclick="onReviewToggle(\''+esc(md.module)+'\')">'+(isReviewed?'&#10003; '+(L.reviewed||'Reviewed'):(L.mark_reviewed||'Mark as Reviewed'))+'</button>';
     mh += '</div>';
 
     mh += '</div>'; // dm-human-row
@@ -578,7 +593,7 @@ function init() {
   if (comps.length) {
     document.getElementById('tableSection').style.display = '';
     var dec_all = loadDecisions();
-    var th = '<table class="comp-table"><thead><tr><th>模块</th><th>Agent-1</th><th>Agent-2</th><th>一致</th><th>AI 终判</th><th style="color:var(--human)">人工覆盖</th><th>状态</th></tr></thead><tbody>';
+    var th = '<table class="comp-table"><thead><tr><th>'+(L.col_module||'Module')+'</th><th>Agent-1</th><th>Agent-2</th><th>'+(L.stat_agree||'Agree')+'</th><th>'+(L.ai_final||'AI Final')+'</th><th style="color:var(--human)">'+(L.human_override||'Human')+'</th><th>'+(L.status||'Status')+'</th></tr></thead><tbody>';
     comps.forEach(function(c) {
       var md = (dec_all.modules && dec_all.modules[c.module]) || {};
       th += '<tr>';
@@ -588,7 +603,7 @@ function init() {
       th += '<td class="'+(c.agree?'agree-yes':'agree-no')+'">'+(c.agree?'&#10003;':'&#10007;')+'</td>';
       th += '<td class="verdict-'+vc(c.final)+'">'+ esc(c.final) +'</td>';
       th += '<td class="verdict-human">'+ (md.overrideVerdict ? '&#9998; '+esc(md.overrideVerdict) : '<span style="color:var(--text-dim)">—</span>') +'</td>';
-      th += '<td>'+ (md.reviewed ? '<span style="color:var(--human);font-weight:600">&#10003; 已审阅</span>' : '<span style="color:var(--text-dim)">待审</span>') +'</td>';
+      th += '<td>'+ (md.reviewed ? '<span style="color:var(--human);font-weight:600">&#10003; '+(L.reviewed||'Reviewed')+'</span>' : '<span style="color:var(--text-dim)">'+(L.pending||'Pending')+'</span>') +'</td>';
       th += '</tr>';
     });
     th += '</tbody></table>';
@@ -626,7 +641,7 @@ function onVerdictChange(mod, val) {
     hpill.style.display = 'none';
     otag.style.display = 'none';
   }
-  toast(mod + ': ' + (val ? '覆盖为 ' + val : '恢复 AI 裁决'));
+  toast(mod + ': ' + (val ? (L.toast_override||'overridden to') + ' ' + val : (L.toast_restore||'restored')));
 }
 
 function onNoteChange(mod, val) {
@@ -638,9 +653,9 @@ function onReviewToggle(mod) {
   var next = !dec.reviewed;
   setModuleDecision(mod, 'reviewed', next);
   var btn = document.getElementById('rbtn-' + mod);
-  btn.textContent = next ? '\u2713 已审阅' : '标记已审阅';
+  btn.textContent = next ? '\u2713 '+(L.reviewed||'Reviewed') : (L.mark_reviewed||'Mark as Reviewed');
   btn.classList.toggle('checked', next);
-  toast(mod + ': ' + (next ? '已标记审阅' : '取消审阅'));
+  toast(mod + ': ' + (next ? (L.toast_mark_reviewed||'reviewed') : (L.toast_unmark_reviewed||'unmarked')));
 }
 
 function updateCardTags(mod) {
@@ -666,15 +681,15 @@ function updateToolbar() {
   var pct = total > 0 ? Math.round(reviewed / total * 100) : 0;
 
   var h = '';
-  h += '<span class="tb-label">&#9998; 人工审阅</span>';
+  h += '<span class="tb-label">&#9998; '+(L.human_review||'Human Review')+'</span>';
   h += '<div class="tb-progress">';
   h += '<div class="tb-progress-bar"><div class="tb-progress-fill" style="width:'+pct+'%"></div></div>';
-  h += '<div class="tb-progress-text">'+reviewed+' / '+total+' 已审阅' + (overridden > 0 ? '，'+overridden+' 个覆盖' : '') + '</div>';
+  h += '<div class="tb-progress-text">'+reviewed+' / '+total+' '+(L.n_reviewed||'reviewed') + (overridden > 0 ? ', '+overridden+' '+(L.n_overrides||'overridden') : '') + '</div>';
   h += '</div>';
   h += '<div class="tb-sep"></div>';
-  h += '<button class="tb-btn tb-primary" onclick="exportDecisions()">&#8681; 导出决策</button>';
-  h += '<button class="tb-btn" onclick="showImport()">&#8679; 导入决策</button>';
-  if (reviewed > 0) h += '<button class="tb-btn tb-danger" onclick="clearDecisions()">&#10005; 清空</button>';
+  h += '<button class="tb-btn tb-primary" onclick="exportDecisions()">&#8681; '+(L.export_btn||'Export')+'</button>';
+  h += '<button class="tb-btn" onclick="showImport()">&#8679; '+(L.import_btn||'Import')+'</button>';
+  if (reviewed > 0) h += '<button class="tb-btn tb-danger" onclick="clearDecisions()">&#10005; '+(L.clear_btn||'Clear')+'</button>';
   document.getElementById('toolbar').innerHTML = h;
 }
 
@@ -692,7 +707,7 @@ function exportDecisions() {
   a.download = 'human-decisions.json';
   a.click();
   URL.revokeObjectURL(a.href);
-  toast('决策已导出为 human-decisions.json');
+  toast(L.toast_exported||'Exported as human-decisions.json');
 }
 
 function showImport() {
@@ -709,7 +724,7 @@ function importFromFile(file) {
   reader.onload = function(e) {
     try {
       var data = JSON.parse(e.target.result);
-      if (!data.modules) throw new Error('无 modules 字段');
+      if (!data.modules) throw new Error(L.no_modules_field||'No modules field');
       // Merge imported into current
       var current = loadDecisions();
       if (!current.modules) current.modules = {};
@@ -718,20 +733,20 @@ function importFromFile(file) {
       }
       saveDecisions(current);
       closeImport();
-      toast('已导入 ' + Object.keys(data.modules).length + ' 个模块的决策');
+      toast((L.toast_imported||'Imported {n} modules').replace('{n}', Object.keys(data.modules).length));
       // Refresh UI
       setTimeout(function() { location.reload(); }, 500);
     } catch(err) {
-      alert('导入失败: ' + err.message);
+      alert((L.import_error||'Import failed') + ': ' + err.message);
     }
   };
   reader.readAsText(file);
 }
 
 function clearDecisions() {
-  if (!confirm('确定清空所有人工审阅记录？此操作不可恢复。')) return;
+  if (!confirm(L.confirm_clear||'Clear all records?')) return;
   localStorage.removeItem(LS_KEY);
-  toast('已清空所有审阅记录');
+  toast(L.toast_cleared||'All records cleared');
   setTimeout(function() { location.reload(); }, 500);
 }
 
