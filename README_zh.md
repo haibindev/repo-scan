@@ -57,6 +57,7 @@
 | `fast` | 1-2 个：构建配置 + 最核心头文件 | 仅推断依赖版本 | 超大目录快速摸底（数百模块） |
 | `standard` | 2-5 个：头文件 + 入口 + 构建配置 | 完整：依赖、架构、技术债 | 常规审计（默认） |
 | `deep` | 5-10 个：增加核心实现、测试、CI | 线程安全、内存、错误处理、API 一致性 | 在 standard 基础上增量深钻 |
+| `full` | 模块内全部文件 | 完整分析 + 横向对比 | 整合前全面摸底 |
 
 **deep 模式是增量式的** — 自动检测已有扫描数据，按判决筛选高价值模块（核心基石 + 提纯合并），追加深度分析：
 
@@ -64,6 +65,15 @@
 /repo-scan /path/to/project --level deep                          # 自动筛选模块
 /repo-scan /path/to/project --level deep --modules base,rtmp_sdk  # 指定模块
 ```
+
+**`--gap-check` — 增量能力差异检测** — 扫描完成后，对比 hbcore 模块与候选源码目录，找出遗漏的符号、API 差异和实现改进点：
+
+```bash
+py -3 scripts/capability_gap.py --hbcore /path/to/hbcore --config gap-config.json
+py -3 scripts/capability_gap.py --hbcore /path/to/hbcore --config gap-config.json -m base
+```
+
+将 `config/gap-config-example.json` 复制为 `gap-config.json`，填入本机路径后运行。输出带 `[MANDATORY-IMPORT]`、`[MANDATORY-EVAL]`、`[EVAL-IMPL]` 标签的 Markdown 报告。
 
 ## 输出格式
 
@@ -139,11 +149,15 @@ python scripts/pre-scan.py /path/to/project -c config.json     # 自定义配置
 ```
 repo-scan/
 ├── SKILL.md                       # 技能主文件（Agent 加载入口）
+├── deep-mode.md                   # deep 模式与 --modules 匹配规则
+├── full-mode.md                   # full 模式规则
 ├── reference.md                   # 各技术栈审计维度速查表
 ├── config/
-│   └── ignore-patterns.json       # 可配置的忽略/识别模式
+│   ├── ignore-patterns.json       # 可配置的忽略/识别模式
+│   └── gap-config-example.json    # --gap-check 示例配置（复制后填入本机路径）
 ├── scripts/
 │   ├── pre-scan.py                # 预扫描脚本（Python 3，零依赖）
+│   ├── capability_gap.py          # 增量能力差异检测（--gap-check）
 │   ├── gen_html.py                # HTML 生成（Markdown → 可视化页面）
 │   └── i18n.py                    # 国际化（自动检测中英文）
 └── templates/

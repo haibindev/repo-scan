@@ -57,6 +57,7 @@ Running `cloc` gives you line counts. Running dependency scanners gives you one 
 | `fast` | 1-2: build config + one key header | Dependency versions only | Quick inventory of huge directories (hundreds of modules) |
 | `standard` | 2-5: headers + entry files + build config | Full: deps, architecture, tech debt | Default audit |
 | `deep` | 5-10: adds core implementation, tests, CI | Thread safety, memory, error handling, API consistency | Incremental on top of standard data |
+| `full` | All files in module | Full analysis + cross-file comparison | Pre-merge comprehensive review |
 
 **Deep mode is incremental** — it detects existing scan data, auto-selects high-value modules (Core Asset + Extract & Merge), and appends detailed analysis:
 
@@ -64,6 +65,15 @@ Running `cloc` gives you line counts. Running dependency scanners gives you one 
 /repo-scan /path/to/project --level deep                          # auto-select modules
 /repo-scan /path/to/project --level deep --modules base,rtmp_sdk  # specific modules
 ```
+
+**`--gap-check` — Incremental capability gap detection** — after a scan is complete, compare your hbcore modules against candidate source directories to find missed symbols, API differences, and implementation improvements:
+
+```bash
+py -3 scripts/capability_gap.py --hbcore /path/to/hbcore --config gap-config.json
+py -3 scripts/capability_gap.py --hbcore /path/to/hbcore --config gap-config.json -m base
+```
+
+Copy `config/gap-config-example.json` to `gap-config.json`, fill in your local paths, and run. Outputs a Markdown report with `[MANDATORY-IMPORT]`, `[MANDATORY-EVAL]`, and `[EVAL-IMPL]` tagged items.
 
 ## Output Sections
 
@@ -139,11 +149,15 @@ python scripts/pre-scan.py /path/to/project -c config.json     # custom config
 ```
 repo-scan/
 ├── SKILL.md                       # Skill definition (Agent entry point)
+├── deep-mode.md                   # Deep mode & --modules rules
+├── full-mode.md                   # Full mode rules
 ├── reference.md                   # Tech stack audit reference tables
 ├── config/
-│   └── ignore-patterns.json       # Configurable ignore/recognition patterns
+│   ├── ignore-patterns.json       # Configurable ignore/recognition patterns
+│   └── gap-config-example.json    # Example config for --gap-check (copy & fill in paths)
 ├── scripts/
 │   ├── pre-scan.py                # Pre-scan script (Python 3, zero deps)
+│   ├── capability_gap.py          # Incremental capability gap detection (--gap-check)
 │   ├── gen_html.py                # HTML generator (Markdown → interactive pages)
 │   └── i18n.py                    # Internationalization (auto-detects zh/en)
 └── templates/
