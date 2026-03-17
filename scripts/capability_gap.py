@@ -37,72 +37,23 @@ capability_gap.py — 增量能力差异检测工具
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
 from datetime import date
 
 # ─── 默认配置 ──────────────────────────────────────────────────────
-DEFAULT_HBCORE_ROOT = Path(r"D:\prjs\hbcore")
-DEFAULT_OUTPUT = Path(r"D:\projects\refactor\capability-gap-report.md")
+# hbcore 根目录：优先使用 --hbcore 参数，其次读取环境变量 HBCORE_ROOT
+_env_root = os.environ.get("HBCORE_ROOT")
+DEFAULT_HBCORE_ROOT = Path(_env_root) if _env_root else None
 
-DEFAULT_MODULES = {
-    "base": {
-        "hbcore_dir": "base/cpp",
-        "candidates": [
-            r"D:\projects\media_cross\base",
-            r"D:\projects\net_custom\quic_server\base",
-            r"D:\projects\rtmp\rtmp_player_cross\base",
-        ],
-    },
-    "base_codec": {
-        "hbcore_dir": "base_codec/cpp",
-        "candidates": [
-            r"D:\projects\media_cross\base_codec",
-            r"D:\projects\rtsp\rtsp_to_rtmp\base_codec",
-        ],
-    },
-    "capture_rtsp": {
-        "hbcore_dir": "capture_rtsp/cpp",
-        "candidates": [
-            r"D:\projects\media_cross\rtsp_player_cross",
-        ],
-    },
-    "capture_rtmp": {
-        "hbcore_dir": "capture_rtmp/cpp",
-        "candidates": [
-            r"D:\projects\media_cross\capture_rtmp",
-            r"D:\projects\audio\capture_rtmp",
-        ],
-    },
-    "nserver": {
-        "hbcore_dir": "nserver/cpp",
-        "candidates": [
-            r"D:\projects\rtmp\nrtmp_server\nserver_base",
-            r"D:\projects\live_service\HbsIPCServer\nserver",
-            r"D:\projects\live_service\DeviceStreamingSystem\device_streaming_system\nserver",
-            r"D:\projects\tools\system_tools\proc_watch",
-        ],
-    },
-    "record_play": {
-        "hbcore_dir": "record_play/cpp",
-        "candidates": [
-            r"D:\projects\record\writter\mp4writter_dll",
-            r"D:\projects\record\camera\cam_display_recorder",
-            r"D:\projects\record\camera\camera_record_dll",
-            r"D:\projects\live_service\rtmp_pip_record_service\record",
-        ],
-    },
-    "remux": {
-        "hbcore_dir": "remux/cpp",
-        "candidates": [
-            r"D:\projects\video\xavi\XAVIConverter",
-            r"D:\projects\video\xvod\XFLVServer",
-            r"D:\projects\record\writter\rtmppush_dll",
-            r"D:\projects\rtmp\rtmp_encoder\flv_rtmp_encoder",
-        ],
-    },
-}
+# 默认输出路径（写到当前工作目录）
+DEFAULT_OUTPUT = Path("capability-gap-report.md")
+
+# 模块映射：通过 --config 参数传入 JSON 配置文件（见 config/gap-config-example.json）
+# 不在此处硬编码本机路径
+DEFAULT_MODULES: dict = {}
 
 SRC_EXTS = {".h", ".hpp", ".cpp", ".c", ".cc", ".cxx"}
 HEADER_EXTS = {".h", ".hpp"}
@@ -613,9 +564,15 @@ def main():
     parser.add_argument("-m", "--module", help="只检测指定模块")
     parser.add_argument("-o", "--output", help="输出报告路径")
     parser.add_argument("--config", help="自定义配置文件 (JSON)")
-    parser.add_argument("--hbcore", help="hbcore 根目录", default=str(DEFAULT_HBCORE_ROOT))
+    parser.add_argument("--hbcore", help="hbcore 根目录（也可设 HBCORE_ROOT 环境变量）",
+                        default=str(DEFAULT_HBCORE_ROOT) if DEFAULT_HBCORE_ROOT else None)
     args = parser.parse_args()
 
+    # 确定 hbcore 根目录
+    if not args.hbcore:
+        print("错误: 请通过 --hbcore 参数或 HBCORE_ROOT 环境变量指定 hbcore 根目录")
+        print("示例: py -3 capability_gap.py --hbcore D:/path/to/hbcore --config gap-config.json")
+        sys.exit(1)
     hbcore_root = Path(args.hbcore)
 
     # 加载模块配置
@@ -626,6 +583,11 @@ def main():
         hbcore_root = Path(cfg.get("hbcore_root", str(hbcore_root)))
     else:
         modules = DEFAULT_MODULES
+
+    if not modules:
+        print("错误: 未配置模块映射，请通过 --config 参数指定配置文件")
+        print("参考: config/gap-config-example.json")
+        sys.exit(1)
 
     if args.module:
         if args.module not in modules:

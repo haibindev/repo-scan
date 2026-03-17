@@ -10,47 +10,47 @@
 
 1. **精确路径匹配** — 值含 `/` 或 `\` 时，视为 scan-output 内的相对路径，直接定位 .md 文件
    ```
-   --modules live_service/hbs_28181_streaming/hbs_28181_server
-   → 查找 scan-output/live_service/hbs_28181_streaming/hbs_28181_server/index.md
-     或 scan-output/live_service/hbs_28181_streaming/hbs_28181_server.md
+   --modules group_a/sub_project/module_x
+   → 查找 scan-output/group_a/sub_project/module_x/index.md
+     或 scan-output/group_a/sub_project/module_x.md
    ```
 
 2. **唯一名称匹配** — 值不含路径分隔符时，在整个 scan-output 目录树中搜索同名 .md 文件或同名目录下的 index.md
    ```
-   --modules hbs_28181_server
-   → 递归搜索 scan-output/**/hbs_28181_server/index.md 或 **/hbs_28181_server.md
+   --modules module_x
+   → 递归搜索 scan-output/**/module_x/index.md 或 **/module_x.md
    → 如果唯一命中 → 使用
    → 如果多个命中 → 列出所有匹配项，要求用户用路径前缀消歧
    ```
 
 3. **模糊前缀匹配** — 允许省略中间层级，只要尾部路径唯一
    ```
-   --modules hbs_28181_streaming/hbs_28181_server
-   → 匹配 scan-output/live_service/hbs_28181_streaming/hbs_28181_server
+   --modules sub_project/module_x
+   → 匹配 scan-output/group_a/sub_project/module_x
    ```
 
-**同名冲突处理**：当多个模块同名时（如 `live_service/.../base` 和 `media_cross/base`），AI 必须列出冲突项并提示用户加路径前缀：
+**同名冲突处理**：当多个模块同名时（如 `group_a/.../base` 和 `group_b/base`），AI 必须列出冲突项并提示用户加路径前缀：
 ```
 发现 3 个名为 "base" 的模块：
-  1. live_service/hbs_28181_streaming/base
-  2. live_service/webrtc_server_lib/base
-  3. media_cross/base
-请用路径前缀指定，如：--modules media_cross/base
+  1. group_a/sub_project_1/base
+  2. group_a/sub_project_2/base
+  3. group_b/base
+请用路径前缀指定，如：--modules group_b/base
 ```
 
 **使用示例**：
 ```bash
 # 精确路径（无歧义）
-/repo-scan D:\projects --level deep --modules live_service/hbs_28181_streaming/hbs_28181_server
+/repo-scan D:\projects --level deep --modules group_a/sub_project/module_x
 
 # 唯一名称（只有一个叫这个名字的模块）
-/repo-scan D:\projects --level deep --modules hbs_28181_server
+/repo-scan D:\projects --level deep --modules module_x
 
 # 混合指定多个
-/repo-scan D:\projects --level deep --modules hbs_28181_server,media_cross/base,rtmp_encoder_sdk
+/repo-scan D:\projects --level deep --modules module_x,group_b/base,module_y
 
 # 省略中间层级
-/repo-scan D:\projects --level deep --modules hbs_28181_streaming/hbs_28181_server
+/repo-scan D:\projects --level deep --modules sub_project/module_x
 ```
 
 ## Deep 增量执行流程

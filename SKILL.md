@@ -152,11 +152,11 @@ py -3 "${CLAUDE_SKILL_DIR}/scripts/capability_gap.py" --config config.json
 
 ```json
 {
-  "hbcore_root": "D:\\prjs\\hbcore",
+  "hbcore_root": "D:\\path\\to\\hbcore",
   "modules": {
     "output_rtmp": {
       "hbcore_dir": "output_rtmp/cpp",
-      "candidates": ["D:\\projects\\rtmp\\rtmp_encoder_sdk\\rtmp_enc"]
+      "candidates": ["D:\\projects\\my_project\\my_module"]
     }
   }
 }
