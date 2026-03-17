@@ -66,14 +66,14 @@
 /repo-scan /path/to/project --level deep --modules base,rtmp_sdk  # 指定模块
 ```
 
-**`--gap-check` — 增量能力差异检测** — 扫描完成后，对比 hbcore 模块与候选源码目录，找出遗漏的符号、API 差异和实现改进点：
+**`--gap-check` — 增量能力差异检测** — 扫描完成后，对比整合后的模块库与候选源码目录，找出遗漏的符号、API 差异和实现改进点：
 
-```bash
-py -3 scripts/capability_gap.py --hbcore /path/to/hbcore --config gap-config.json
-py -3 scripts/capability_gap.py --hbcore /path/to/hbcore --config gap-config.json -m base
+```
+/repo-scan --gap-check
+/repo-scan --gap-check -m base
 ```
 
-将 `config/gap-config-example.json` 复制为 `gap-config.json`，填入本机路径后运行。输出带 `[MANDATORY-IMPORT]`、`[MANDATORY-EVAL]`、`[EVAL-IMPL]` 标签的 Markdown 报告。
+运行前将 `config/gap-config-example.json` 复制为 `gap-config.json` 并填入本机路径。输出带 `[MANDATORY-IMPORT]`、`[MANDATORY-EVAL]`、`[EVAL-IMPL]` 标签的 Markdown 报告。
 
 ## 输出格式
 

@@ -1,22 +1,22 @@
 {
   "_comment": "复制本文件为 gap-config.json，填入本机路径后使用：py -3 scripts/capability_gap.py --config gap-config.json",
-  "hbcore_root": "D:\\path\\to\\hbcore",
+  "target_root": "D:\\path\\to\\module-lib",
   "modules": {
     "base": {
-      "hbcore_dir": "base/cpp",
+      "target_dir": "base/cpp",
       "candidates": [
         "D:\\projects\\project_a\\base",
         "D:\\projects\\project_b\\base"
       ]
     },
     "base_codec": {
-      "hbcore_dir": "base_codec/cpp",
+      "target_dir": "base_codec/cpp",
       "candidates": [
         "D:\\projects\\project_a\\base_codec"
       ]
     },
     "capture_rtmp": {
-      "hbcore_dir": "capture_rtmp/cpp",
+      "target_dir": "capture_rtmp/cpp",
       "candidates": [
         "D:\\projects\\project_a\\capture_rtmp"
       ]

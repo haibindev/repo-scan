@@ -167,10 +167,16 @@
   .dm-human-field select:focus { border-color: var(--human); }
   .dm-human-field select option { background: var(--bg); color: var(--text); }
   .dm-human-note { flex: 1; min-width: 300px; }
-  .dm-human-note textarea { width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+  .dm-human-note textarea { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);
     background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit; resize: vertical;
-    min-height: 60px; outline: none; line-height: 1.5; }
+    min-height: 160px; outline: none; line-height: 1.6; }
   .dm-human-note textarea:focus { border-color: var(--human); }
+  .dm-copy-btns { display: flex; gap: 6px; margin-bottom: 6px; }
+  .dm-copy-btn { padding: 4px 10px; border-radius: 5px; font-size: 11px; cursor: pointer; transition: all 0.15s;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text-dim); display: inline-flex; align-items: center; gap: 4px; }
+  .dm-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .dm-copy-btn.a1-copy:hover { border-color: var(--a1); color: var(--a1); }
+  .dm-copy-btn.a2-copy:hover { border-color: var(--a2); color: var(--a2); }
   .dm-human-actions { display: flex; align-items: flex-end; gap: 8px; }
   .dm-review-btn { padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.15s;
     border: 1px solid var(--border); background: var(--bg); color: var(--text-dim); }
@@ -555,10 +561,14 @@ function init() {
     });
     mh += '</select></div>';
 
-    // Note
+    // Processing Reference (处理参考)
     mh += '<div class="dm-human-field dm-human-note">';
-    mh += '<label>'+(L.note||'Notes')+'</label>';
-    mh += '<textarea id="note-'+esc(md.module)+'" placeholder="'+(L.note_placeholder||'Review notes...')+'" onblur="onNoteChange(\''+esc(md.module)+'\',this.value)">'+ esc(dec.note||'') +'</textarea>';
+    mh += '<label>'+(L.proc_ref||'Processing Reference')+'</label>';
+    mh += '<div class="dm-copy-btns">';
+    mh += '<button class="dm-copy-btn a1-copy" onclick="copyA1Quality(\''+esc(md.module)+'\')" title="'+(L.copy_a1_quality||'Copy Agent-1 quality assessment')+'"><span class="tag-a1" style="padding:0 4px;font-size:9px">A1</span> '+(L.btn_copy_quality||'Copy Quality')+'</button>';
+    mh += '<button class="dm-copy-btn a2-copy" onclick="copyA2Full(\''+esc(md.module)+'\')" title="'+(L.copy_a2_full||'Copy Agent-2 full content')+'"><span class="tag-a2" style="padding:0 4px;font-size:9px">A2</span> '+(L.btn_copy_full||'Copy Full')+'</button>';
+    mh += '</div>';
+    mh += '<textarea id="note-'+esc(md.module)+'" placeholder="'+(L.proc_ref_placeholder||'Combine agent findings here as reference for module repair/refactoring...')+'" onblur="onNoteChange(\''+esc(md.module)+'\',this.value)">'+ esc(dec.note||'') +'</textarea>';
     mh += '</div>';
 
     // Review toggle
@@ -614,6 +624,9 @@ function init() {
   if (ds.summaryNote) {
     document.getElementById('summaryNote').innerHTML = '<div class="summary-note">'+ds.summaryNote+'</div>';
   }
+
+  // Build data map for copy functions
+  buildModuleDataMap();
 
   // Auto-expand disagree cards
   document.querySelectorAll('.dm-card.dm-disagree').forEach(function(c){ c.classList.add('dm-open'); });
@@ -796,6 +809,79 @@ function field(label, content) {
   return '<div class="dm-field"><span class="dm-field-label">'+label+'</span>'+content+'</div>';
 }
 function toggleCard(header) { header.parentElement.classList.toggle('dm-open'); }
+
+// ═══════════════════════════════════════════════════════════
+// Copy to Processing Reference
+// ═══════════════════════════════════════════════════════════
+var _moduleDataMap = {};
+function buildModuleDataMap() {
+  var ds = REPORT.dualScan;
+  (ds.moduleDetails || []).forEach(function(md) { _moduleDataMap[md.module] = md; });
+}
+
+function copyA1Quality(mod) {
+  var md = _moduleDataMap[mod];
+  if (!md || !md.a1) { toast('No Agent-1 data'); return; }
+  var a1 = md.a1;
+  var lines = [];
+  lines.push('=== Agent-1: ' + (REPORT.dualScan.agent1.name||'Agent-1') + ' ===');
+  lines.push((L.col_verdict||'Verdict') + ': ' + (md.agent1Verdict||''));
+  if (a1.qualityItems && a1.qualityItems.length) {
+    lines.push('');
+    lines.push((L.field_quality||'Quality Assessment') + ':');
+    a1.qualityItems.forEach(function(q) { lines.push('- ' + stripHtml(q)); });
+  }
+  appendToNote(mod, lines.join('\n'));
+}
+
+function copyA2Full(mod) {
+  var md = _moduleDataMap[mod];
+  if (!md || !md.a2) { toast('No Agent-2 data'); return; }
+  var a2 = md.a2;
+  var lines = [];
+  lines.push('=== Agent-2: ' + (REPORT.dualScan.agent2.name||'Agent-2') + ' ===');
+  lines.push((L.col_verdict||'Verdict') + ': ' + (md.agent2Verdict||''));
+  if (a2.verdictReason) {
+    lines.push((L.col_verdict||'Verdict') + ' reason: ' + stripHtml(a2.verdictReason));
+  }
+  if (a2.findings && a2.findings.length) {
+    lines.push('');
+    lines.push('Findings:');
+    a2.findings.forEach(function(f, i) { lines.push((i+1) + '. ' + stripHtml(f)); });
+  }
+  if (a2.crossComparison && a2.crossComparison.length) {
+    lines.push('');
+    lines.push('Cross-comparison:');
+    a2.crossComparison.forEach(function(c) { lines.push('- ' + stripHtml(c)); });
+  }
+  // Include dispute info if present
+  if (md.dispute) {
+    var dp = md.dispute;
+    lines.push('');
+    lines.push((L.ai_dispute||'AI Dispute Resolution') + ':');
+    if (dp.findings && dp.findings.length) {
+      dp.findings.forEach(function(f) { lines.push('- [' + f.tag + '] ' + stripHtml(f.text)); });
+    }
+    if (dp.reason) { lines.push('Reason: ' + stripHtml(dp.reason)); }
+  }
+  appendToNote(mod, lines.join('\n'));
+}
+
+function appendToNote(mod, text) {
+  var ta = document.getElementById('note-' + mod);
+  if (!ta) return;
+  var cur = ta.value.trim();
+  ta.value = cur ? cur + '\n\n' + text : text;
+  onNoteChange(mod, ta.value);
+  // Auto-resize
+  ta.style.height = 'auto';
+  ta.style.height = Math.max(160, ta.scrollHeight + 4) + 'px';
+  toast(mod + ': ' + (L.toast_copied||'content copied'));
+}
+
+function stripHtml(s) {
+  return (s||'').replace(/<[^>]+>/g, '').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
+}
 function toast(msg) {
   var el = document.getElementById('toast');
   el.textContent = msg; el.classList.add('show');

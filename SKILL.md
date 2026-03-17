@@ -99,11 +99,11 @@ python "${CLAUDE_SKILL_DIR}/scripts/pre-scan.py" "$ARGUMENTS" -o "$ARGUMENTS/rep
 >
 > **--refresh 模式**：当使用 `--refresh` 参数时，必须先读取 `${CLAUDE_SKILL_DIR}/deep-mode.md` 获取顶层刷新流程。
 >
-> **--gap-check 模式**：增量能力差异检测，不重新执行 repo-scan，而是用 SHA256 对比 hbcore 已有模块与 best candidate 目录的文件差异，提取 C++ 符号级的能力 gap。详见下节。
+> **--gap-check 模式**：增量能力差异检测，不重新执行 repo-scan，而是用 SHA256 对比 已整合模块与 best candidate 目录的文件差异，提取 C++ 符号级的能力 gap。详见下节。
 
 ### --gap-check 增量能力差异检测
 
-**场景**：repo-scan 已完成，hbcore 模块整合进行中或完成后，需要验证是否遗漏了候选目录中的新能力。
+**场景**：repo-scan 已完成，模块整合进行中或完成后，需要验证是否遗漏了候选目录中的新能力。
 
 **工具**：`${CLAUDE_SKILL_DIR}/scripts/capability_gap.py`
 
@@ -125,7 +125,7 @@ py -3 "${CLAUDE_SKILL_DIR}/scripts/capability_gap.py" --config config.json
 
 | 类型 | 标签 | 含义 | 处理方式 |
 |------|------|------|---------|
-| 新文件 | `[MANDATORY-IMPORT]` | 候选有但 hbcore 没有的文件 | 必须导入或明确决定不导入 |
+| 新文件 | `[MANDATORY-IMPORT]` | 候选有但目标库没有的文件 | 必须导入或明确决定不导入 |
 | API 差异 | `[MANDATORY-EVAL]` | 同名文件但候选有新的 class/function/enum | 必须评估合并 |
 | 实现差异 | `[EVAL-IMPL]` | 同名文件 API 相同但实现不同 | 检测关键模式（atomic/智能指针/错误处理等），按改进方向决定 |
 
@@ -152,10 +152,10 @@ py -3 "${CLAUDE_SKILL_DIR}/scripts/capability_gap.py" --config config.json
 
 ```json
 {
-  "hbcore_root": "D:\\path\\to\\hbcore",
+  "target_root": "D:\\path\\to\\module-lib",
   "modules": {
     "output_rtmp": {
-      "hbcore_dir": "output_rtmp/cpp",
+      "target_dir": "output_rtmp/cpp",
       "candidates": ["D:\\projects\\my_project\\my_module"]
     }
   }

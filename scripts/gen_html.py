@@ -71,6 +71,7 @@ def main():
     parser.add_argument('-t', '--template', default='', help='HTML 模板路径（留空则自动选择）')
     parser.add_argument('--open', action='store_true', help='生成后自动打开浏览器')
     parser.add_argument('--dual', action='store_true', help='单独生成双扫描交叉验证页面（dual-scan.html）')
+    parser.add_argument('--lang', choices=['zh', 'en'], default=None, help='指定输出语言（默认自动检测系统语言）')
     args = parser.parse_args()
 
     if not os.path.exists(args.report):
@@ -105,7 +106,7 @@ def main():
     report_dir = os.path.dirname(os.path.abspath(args.report))
 
     # ── 检测语言 ──
-    lang = detect_lang()
+    lang = args.lang or detect_lang()
     lang_dict = get_translations(lang)
     print(f'Language: {lang}')
 

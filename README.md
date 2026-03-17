@@ -66,14 +66,14 @@ Running `cloc` gives you line counts. Running dependency scanners gives you one 
 /repo-scan /path/to/project --level deep --modules base,rtmp_sdk  # specific modules
 ```
 
-**`--gap-check` — Incremental capability gap detection** — after a scan is complete, compare your hbcore modules against candidate source directories to find missed symbols, API differences, and implementation improvements:
+**`--gap-check` — Incremental capability gap detection** — after a scan is complete, compare your consolidated module library against candidate source directories to find missed symbols, API differences, and implementation improvements:
 
-```bash
-py -3 scripts/capability_gap.py --hbcore /path/to/hbcore --config gap-config.json
-py -3 scripts/capability_gap.py --hbcore /path/to/hbcore --config gap-config.json -m base
+```
+/repo-scan --gap-check
+/repo-scan --gap-check -m base
 ```
 
-Copy `config/gap-config-example.json` to `gap-config.json`, fill in your local paths, and run. Outputs a Markdown report with `[MANDATORY-IMPORT]`, `[MANDATORY-EVAL]`, and `[EVAL-IMPL]` tagged items.
+Copy `config/gap-config-example.json` to `gap-config.json` and fill in your local paths before running. Outputs a Markdown report with `[MANDATORY-IMPORT]`, `[MANDATORY-EVAL]`, and `[EVAL-IMPL]` tagged items.
 
 ## Output Sections
 

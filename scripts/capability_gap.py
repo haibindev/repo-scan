@@ -2,8 +2,8 @@
 """
 capability_gap.py — 增量能力差异检测工具
 
-对比 hbcore 模块与 best candidate 目录，检测三类差异：
-1. 新文件（候选有，hbcore 无）→ [MANDATORY-IMPORT]
+对比 目标模块库模块与 best candidate 目录，检测三类差异：
+1. 新文件（候选有，目标库无）→ [MANDATORY-IMPORT]
 2. 同名文件 API 差异（.h 符号不同）→ [MANDATORY-EVAL]
 3. 同名文件实现差异（.cpp SHA256 不同但符号可能相同）→ [EVAL-IMPL]
 
@@ -24,11 +24,11 @@ capability_gap.py — 增量能力差异检测工具
 
 配置文件格式（JSON）：
 {
-  "hbcore_root": "D:\\prjs\\hbcore",
+  "target_root": "D:\\path\\to\\module-lib",
   "modules": {
     "base": {
-      "hbcore_dir": "base/cpp",
-      "candidates": ["D:\\projects\\media_cross\\base", ...]
+      "target_dir": "base/cpp",
+      "candidates": ["D:\\projects\\project_a\\base", ...]
     }
   }
 }
@@ -44,9 +44,9 @@ from pathlib import Path
 from datetime import date
 
 # ─── 默认配置 ──────────────────────────────────────────────────────
-# hbcore 根目录：优先使用 --hbcore 参数，其次读取环境变量 HBCORE_ROOT
-_env_root = os.environ.get("HBCORE_ROOT")
-DEFAULT_HBCORE_ROOT = Path(_env_root) if _env_root else None
+# 目标模块库根目录：优先使用 --target 参数，其次读取环境变量 TARGET_ROOT
+_env_root = os.environ.get("TARGET_ROOT")
+DEFAULT_TARGET_ROOT = Path(_env_root) if _env_root else None
 
 # 默认输出路径（写到当前工作目录）
 DEFAULT_OUTPUT = Path("capability-gap-report.md")
@@ -169,18 +169,18 @@ def detect_include_diff(path_a: Path, path_b: Path) -> tuple:
 
 
 # ─── 核心比较 ──────────────────────────────────────────────────────
-def compare_module(module_name: str, config: dict, hbcore_root: Path) -> dict:
-    hbcore_dir = hbcore_root / config["hbcore_dir"]
-    if not hbcore_dir.exists():
-        return {"error": f"hbcore 目录不存在: {hbcore_dir}", "module": module_name}
+def compare_module(module_name: str, config: dict, target_root: Path) -> dict:
+    target_dir = target_root / config["target_dir"]
+    if not target_dir.exists():
+        return {"error": f"目标目录不存在: {target_dir}", "module": module_name}
 
-    # 收集 hbcore 文件
+    # 收集 目标库文件
     hbcore_files = {}   # lowercase name → Path
     hbcore_hashes = {}  # lowercase name → sha256
     hbcore_symbols = {} # lowercase name → set
     hbcore_patterns = {} # lowercase name → pattern counts
 
-    for f in hbcore_dir.iterdir():
+    for f in target_dir.iterdir():
         if f.is_file() and f.suffix.lower() in SRC_EXTS:
             key = f.name.lower()
             hbcore_files[key] = f
@@ -195,7 +195,7 @@ def compare_module(module_name: str, config: dict, hbcore_root: Path) -> dict:
 
     results = {
         "module": module_name,
-        "hbcore_dir": str(hbcore_dir),
+        "target_dir": str(target_dir),
         "hbcore_file_count": len(hbcore_files),
         "candidates": [],
         "new_files": [],
@@ -343,19 +343,19 @@ def compare_module(module_name: str, config: dict, hbcore_root: Path) -> dict:
 
 
 # ─── Markdown 报告 ─────────────────────────────────────────────────
-def generate_report(all_results: list, output_path: Path, hbcore_root: Path):
+def generate_report(all_results: list, output_path: Path, target_root: Path):
     lines = []
     lines.append("# 增量能力差异检测报告")
     lines.append("")
     lines.append(f"- **生成日期**: {date.today()}")
-    lines.append(f"- **hbcore**: `{hbcore_root}`")
+    lines.append(f"- **目标库**: `{target_root}`")
     lines.append(f"- **模块数**: {len(all_results)}")
     lines.append("")
 
     # 总览表
     lines.append("## 总览")
     lines.append("")
-    lines.append("| 模块 | hbcore 文件 | 新文件 | API 差异 | 实现差异 | 新符号 |")
+    lines.append("| 模块 | 目标库文件 | 新文件 | API 差异 | 实现差异 | 新符号 |")
     lines.append("|------|-----------|--------|---------|---------|-------|")
     for r in all_results:
         if "error" in r:
@@ -382,7 +382,7 @@ def generate_report(all_results: list, output_path: Path, hbcore_root: Path):
         tag = "有差异" if has_any else "无差异"
         lines.append(f"## {r['module']} — {tag}")
         lines.append("")
-        lines.append(f"- hbcore: `{r['hbcore_dir']}` ({r['hbcore_file_count']} 文件)")
+        lines.append(f"- 目标库: `{r['target_dir']}` ({r['hbcore_file_count']} 文件)")
         lines.append("")
 
         # 候选目录
@@ -404,7 +404,7 @@ def generate_report(all_results: list, output_path: Path, hbcore_root: Path):
 
         # ── 新文件 ──
         if r["new_files"]:
-            lines.append("### 新文件（候选有，hbcore 无）— [MANDATORY-IMPORT]")
+            lines.append("### 新文件（候选有，目标库无）— [MANDATORY-IMPORT]")
             lines.append("")
             for entry in r["new_files"]:
                 tag = "📄" if entry["is_header"] else "⚙️"
@@ -430,9 +430,9 @@ def generate_report(all_results: list, output_path: Path, hbcore_root: Path):
             lines.append("")
             for entry in r["diff_files"]:
                 tag = "📄" if entry["is_header"] else "⚙️"
-                line_info = f"hbcore {entry['hbcore_lines']}行 vs 候选 {entry['cand_lines']}行"
+                line_info = f"目标库 {entry['hbcore_lines']}行 vs 候选 {entry['cand_lines']}行"
                 lines.append(f"#### {tag} `{entry['filename']}` ({line_info})")
-                lines.append(f"- hbcore: `{entry['hbcore_path']}`")
+                lines.append(f"- 目标库: `{entry['hbcore_path']}`")
                 lines.append(f"- 候选:  `{entry['full_path']}`")
                 if entry["new_symbols"]:
                     lines.append(f"- **候选新增符号** ({entry['new_symbols_count']}): "
@@ -445,7 +445,7 @@ def generate_report(all_results: list, output_path: Path, hbcore_root: Path):
                 if entry.get("pattern_diff"):
                     lines.append("- 实现模式差异:")
                     for pk, info in entry["pattern_diff"].items():
-                        lines.append(f"  - {info['desc']}: hbcore={info['hbcore']} → 候选={info['candidate']}")
+                        lines.append(f"  - {info['desc']}: 目标库={info['hbcore']} → 候选={info['candidate']}")
                 lines.append("")
 
         # ── 实现差异 ──
@@ -453,21 +453,21 @@ def generate_report(all_results: list, output_path: Path, hbcore_root: Path):
             lines.append("### 实现差异（API 相同但内容不同）— [EVAL-IMPL]")
             lines.append("")
             for entry in r["impl_diff_files"]:
-                line_info = f"hbcore {entry['hbcore_lines']}行 vs 候选 {entry['cand_lines']}行"
+                line_info = f"目标库 {entry['hbcore_lines']}行 vs 候选 {entry['cand_lines']}行"
                 lines.append(f"#### `{entry['filename']}` ({line_info})")
-                lines.append(f"- hbcore: `{entry['hbcore_path']}`")
+                lines.append(f"- 目标库: `{entry['hbcore_path']}`")
                 lines.append(f"- 候选:  `{entry['full_path']}`")
                 if entry.get("note"):
                     lines.append(f"- 备注: {entry['note']}")
                 if entry.get("includes_only_in_cand"):
                     lines.append(f"- 候选新增 include: `{'`, `'.join(entry['includes_only_in_cand'])}`")
                 if entry.get("includes_only_in_hbcore"):
-                    lines.append(f"- hbcore 独有 include: `{'`, `'.join(entry['includes_only_in_hbcore'])}`")
+                    lines.append(f"- 目标库独有 include: `{'`, `'.join(entry['includes_only_in_hbcore'])}`")
                 if entry.get("pattern_diff"):
                     lines.append("- **实现模式差异**:")
                     for pk, info in entry["pattern_diff"].items():
                         direction = "↑ 改进" if _is_improvement(pk, info) else "变化"
-                        lines.append(f"  - {info['desc']}: hbcore={info['hbcore']} → 候选={info['candidate']} ({direction})")
+                        lines.append(f"  - {info['desc']}: 目标库={info['hbcore']} → 候选={info['candidate']} ({direction})")
                 lines.append("")
 
         if not has_any:
@@ -559,28 +559,28 @@ def _is_improvement(pattern_key: str, info: dict) -> bool:
 # ─── main ──────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(
-        description="增量能力差异检测 — 对比 hbcore 与候选目录"
+        description="增量能力差异检测 — 对比目标模块库与候选目录"
     )
     parser.add_argument("-m", "--module", help="只检测指定模块")
     parser.add_argument("-o", "--output", help="输出报告路径")
     parser.add_argument("--config", help="自定义配置文件 (JSON)")
-    parser.add_argument("--hbcore", help="hbcore 根目录（也可设 HBCORE_ROOT 环境变量）",
-                        default=str(DEFAULT_HBCORE_ROOT) if DEFAULT_HBCORE_ROOT else None)
+    parser.add_argument("--target", help="目标模块库根目录（也可设 TARGET_ROOT 环境变量）",
+                        default=str(DEFAULT_TARGET_ROOT) if DEFAULT_TARGET_ROOT else None)
     args = parser.parse_args()
 
-    # 确定 hbcore 根目录
-    if not args.hbcore:
-        print("错误: 请通过 --hbcore 参数或 HBCORE_ROOT 环境变量指定 hbcore 根目录")
-        print("示例: py -3 capability_gap.py --hbcore D:/path/to/hbcore --config gap-config.json")
+    # 确定目标模块库根目录
+    if not args.target:
+        print("错误: 请通过 --target 参数或 TARGET_ROOT 环境变量指定目标模块库根目录")
+        print("示例: py -3 capability_gap.py --target D:/path/to/module-lib --config gap-config.json")
         sys.exit(1)
-    hbcore_root = Path(args.hbcore)
+    target_root = Path(args.target)
 
     # 加载模块配置
     if args.config:
         with open(args.config, encoding="utf-8") as f:
             cfg = json.load(f)
         modules = cfg.get("modules", {})
-        hbcore_root = Path(cfg.get("hbcore_root", str(hbcore_root)))
+        target_root = Path(cfg.get("target_root", str(target_root)))
     else:
         modules = DEFAULT_MODULES
 
@@ -603,7 +603,7 @@ def main():
         print(f"\n{'='*60}")
         print(f"检测模块: {name}")
         print(f"{'='*60}")
-        result = compare_module(name, config, hbcore_root)
+        result = compare_module(name, config, target_root)
         all_results.append(result)
 
         if "error" in result:
@@ -637,7 +637,7 @@ def main():
                     extra = f" — 改进: {', '.join(highlights)}" if highlights else ""
                     print(f"    ~ {e['filename']} ({e['hbcore_lines']}→{e['cand_lines']}行{extra})")
 
-    report = generate_report(all_results, output_path, hbcore_root)
+    report = generate_report(all_results, output_path, target_root)
     print(f"\n{'='*60}")
     print(f"报告已写入: {output_path}")
     total_issues = sum(
