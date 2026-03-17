@@ -526,6 +526,246 @@ def generate_report(all_results: list, output_path: Path, target_root: Path):
     return report_text
 
 
+# ─── HTML 报告 ──────────────────────────────────────────────────────
+def _esc(s):
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
+def generate_html_report(all_results: list, html_path: Path, target_root: Path):
+    """生成 HTML 报告：总览表展开，每个模块 section 默认折叠。"""
+    from datetime import date as _date
+
+    def badge(label, color):
+        return f'<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;background:{color}20;border:1px solid {color};color:{color}">{_esc(label)}</span>'
+
+    def tag_badge(label):
+        colors = {"MANDATORY-IMPORT": "#f85149", "MANDATORY-EVAL": "#d29922", "EVAL-IMPL": "#bc8cff"}
+        c = colors.get(label, "#8b949e")
+        return badge(label, c)
+
+    lines = []
+    lines.append('<!DOCTYPE html><html lang="zh-CN"><head>')
+    lines.append('<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">')
+    lines.append('<title>能力差异检测报告</title>')
+    lines.append('''<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#e6edf3;--dim:#8b949e;
+  --accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;--purple:#bc8cff;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+.container{max-width:1200px;margin:0 auto;padding:24px}
+h1{font-size:22px;font-weight:700;margin-bottom:6px}
+.meta{color:var(--dim);font-size:13px;margin-bottom:24px}
+h2{font-size:16px;font-weight:600;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:24px}
+th{background:var(--surface);padding:8px 12px;text-align:left;border-bottom:2px solid var(--border);color:var(--dim);font-weight:600;font-size:11px;text-transform:uppercase}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+tr:hover td{background:var(--surface)}
+.num{text-align:center}
+.red{color:var(--red);font-weight:700}
+.yellow{color:var(--yellow);font-weight:700}
+.green{color:var(--green)}
+.dim{color:var(--dim)}
+details{border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden}
+details[open]{border-color:var(--accent)}
+summary{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;
+  background:var(--surface);user-select:none;list-style:none;font-size:14px;font-weight:600}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▶";font-size:10px;color:var(--dim);transition:transform .15s;flex-shrink:0}
+details[open]>summary::before{transform:rotate(90deg)}
+.module-body{padding:16px 20px;font-size:13px}
+.subsection{margin-bottom:16px}
+.subsection-title{font-size:12px;font-weight:700;color:var(--dim);text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.file-entry{padding:8px 0;border-bottom:1px solid var(--border)22}
+.file-entry:last-child{border-bottom:none}
+.filename{font-family:"Cascadia Code",Consolas,monospace;color:var(--accent);font-size:13px}
+.file-meta{color:var(--dim);font-size:12px;margin:3px 0}
+.symbols{color:var(--text);font-size:12px;margin-top:4px}
+.cand-list{padding-left:0;list-style:none;margin:0}
+.cand-list li{padding:4px 0;font-size:12px;color:var(--dim);font-family:"Cascadia Code",Consolas,monospace}
+.mandatory{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-top:24px}
+.mandatory h2{font-size:16px;font-weight:700;color:var(--red);margin-bottom:16px}
+.mandatory-module{margin-bottom:16px}
+.mandatory-module h3{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:8px;
+  padding-bottom:4px;border-bottom:1px solid var(--border)}
+.mandatory-item{padding:6px 0;font-size:13px;border-bottom:1px solid var(--border)18}
+.mandatory-item:last-child{border-bottom:none}
+.mandatory-item code{font-family:"Cascadia Code",Consolas,monospace;background:var(--surface);
+  padding:1px 5px;border-radius:3px;font-size:12px}
+.pat-diff{margin-top:6px;padding:6px 10px;background:var(--bg);border-radius:4px;font-size:11px;color:var(--dim)}
+</style>''')
+    lines.append('</head><body><div class="container">')
+    lines.append(f'<h1>能力差异检测报告</h1>')
+    lines.append(f'<div class="meta">生成日期: {_date.today()} &nbsp;|&nbsp; 目标库: <code>{_esc(target_root)}</code> &nbsp;|&nbsp; 模块数: {len(all_results)}</div>')
+
+    # ── 总览表 ──
+    lines.append('<h2>总览</h2>')
+    lines.append('<table><thead><tr>')
+    for col in ["模块", "目标库文件", "新文件", "API 差异", "实现差异", "新符号"]:
+        lines.append(f'<th>{col}</th>')
+    lines.append('</tr></thead><tbody>')
+    for r in all_results:
+        if "error" in r:
+            lines.append(f'<tr><td>{_esc(r["module"])}</td><td colspan="5" class="red">ERROR: {_esc(r["error"])}</td></tr>')
+        else:
+            n_new = len(r["new_files"])
+            n_diff = len(r["diff_files"])
+            n_impl = len(r["impl_diff_files"])
+            n_sym = r["new_symbols_count"]
+            has_any = n_new or n_diff or n_impl
+            cls_new = ' class="red"' if n_new else ' class="dim"'
+            cls_diff = ' class="yellow"' if n_diff else ' class="dim"'
+            cls_impl = ' class="yellow"' if n_impl else ' class="dim"'
+            cls_sym = ' class="yellow"' if n_sym else ' class="dim"'
+            mlink = f'<a href="#{_esc(r["module"])}" style="color:{"var(--red)" if has_any else "var(--green)"}">{_esc(r["module"])}</a>'
+            lines.append(f'<tr><td>{mlink}</td><td class="num">{r["hbcore_file_count"]}</td>'
+                         f'<td class="num"{cls_new}>{n_new}</td>'
+                         f'<td class="num"{cls_diff}>{n_diff}</td>'
+                         f'<td class="num"{cls_impl}>{n_impl}</td>'
+                         f'<td class="num"{cls_sym}>{n_sym}</td></tr>')
+    lines.append('</tbody></table>')
+
+    # ── 每模块详细（默认折叠）──
+    for r in all_results:
+        mod = r["module"]
+        has_any = "error" not in r and (r["new_files"] or r["diff_files"] or r["impl_diff_files"])
+        status_label = "有差异" if has_any else ("ERROR" if "error" in r else "无差异")
+        status_color = "var(--red)" if has_any else ("var(--red)" if "error" in r else "var(--green)")
+
+        lines.append(f'<details id="{_esc(mod)}">')
+        n_items = 0 if "error" in r else len(r["new_files"]) + len(r["diff_files"]) + len(r["impl_diff_files"])
+        count_txt = f' &nbsp;<span class="dim" style="font-size:12px;font-weight:400">{n_items} 项差异</span>' if n_items else ''
+        lines.append(f'<summary>{_esc(mod)}'
+                     f' &nbsp;<span style="color:{status_color};font-size:12px">{status_label}</span>'
+                     f'{count_txt}</summary>')
+        lines.append('<div class="module-body">')
+
+        if "error" in r:
+            lines.append(f'<p class="red">{_esc(r["error"])}</p>')
+        else:
+            # 候选目录
+            lines.append('<div class="subsection"><div class="subsection-title">候选目录</div>')
+            lines.append('<ul class="cand-list">')
+            for c in r["candidates"]:
+                if c["status"] == "NOT_FOUND":
+                    lines.append(f'<li><s>{_esc(c["path"])}</s> — 未找到</li>')
+                else:
+                    parts = [f'{c["file_count"]} 文件']
+                    if c.get("new_files"): parts.append(f'<span class="red">{len(c["new_files"])} 新</span>')
+                    if c.get("diff_files"): parts.append(f'<span class="yellow">{len(c["diff_files"])} API差异</span>')
+                    if c.get("impl_diff_files"): parts.append(f'<span class="yellow">{len(c["impl_diff_files"])} 实现差异</span>')
+                    lines.append(f'<li>{_esc(c["path"])} — {", ".join(parts)}</li>')
+            lines.append('</ul></div>')
+
+            # 新文件
+            if r["new_files"]:
+                lines.append(f'<div class="subsection"><div class="subsection-title">新文件（候选有，目标库无）&nbsp;{tag_badge("MANDATORY-IMPORT")}</div>')
+                for e in r["new_files"]:
+                    icon = "📄" if e["is_header"] else "⚙️"
+                    lines.append(f'<div class="file-entry"><div><span class="filename">{icon} {_esc(e["filename"])}</span>'
+                                 f' <span class="dim">({e["line_count"]} 行)</span></div>')
+                    lines.append(f'<div class="file-meta">来源: <code>{_esc(e["full_path"])}</code></div>')
+                    if e["new_symbols"]:
+                        syms = "`, `".join(e["new_symbols"][:10])
+                        extra = f" ... (+{e['new_symbols_count']-10})" if e['new_symbols_count'] > 10 else ""
+                        lines.append(f'<div class="symbols">新符号: <code>{_esc(syms)}</code>{extra}</div>')
+                    lines.append('</div>')
+                lines.append('</div>')
+
+            # API 差异
+            if r["diff_files"]:
+                lines.append(f'<div class="subsection"><div class="subsection-title">API / 符号差异&nbsp;{tag_badge("MANDATORY-EVAL")}</div>')
+                for e in r["diff_files"]:
+                    icon = "📄" if e["is_header"] else "⚙️"
+                    lines.append(f'<div class="file-entry"><div><span class="filename">{icon} {_esc(e["filename"])}</span>'
+                                 f' <span class="dim">目标库 {e["hbcore_lines"]}行 vs 候选 {e["cand_lines"]}行</span></div>')
+                    lines.append(f'<div class="file-meta">目标库: <code>{_esc(e["hbcore_path"])}</code></div>')
+                    lines.append(f'<div class="file-meta">候选: <code>{_esc(e["full_path"])}</code></div>')
+                    if e["new_symbols"]:
+                        syms = "`, `".join(e["new_symbols"][:10])
+                        lines.append(f'<div class="symbols yellow">候选新增符号: <code>{_esc(syms)}</code></div>')
+                    if e.get("pattern_diff"):
+                        lines.append('<div class="pat-diff">')
+                        for pk, info in e["pattern_diff"].items():
+                            lines.append(f'{_esc(info["desc"])}: 目标库={info["hbcore"]} → 候选={info["candidate"]}<br>')
+                        lines.append('</div>')
+                    lines.append('</div>')
+                lines.append('</div>')
+
+            # 实现差异
+            if r["impl_diff_files"]:
+                lines.append(f'<div class="subsection"><div class="subsection-title">实现差异（接口相同）&nbsp;{tag_badge("EVAL-IMPL")}</div>')
+                for e in r["impl_diff_files"]:
+                    icon = "📄" if e["is_header"] else "⚙️"
+                    lines.append(f'<div class="file-entry"><div><span class="filename">{icon} {_esc(e["filename"])}</span>'
+                                 f' <span class="dim">目标库 {e["hbcore_lines"]}行 vs 候选 {e["cand_lines"]}行</span></div>')
+                    if e.get("pattern_diff"):
+                        lines.append('<div class="pat-diff">')
+                        for pk, info in e["pattern_diff"].items():
+                            arrow = "↑" if _is_improvement(pk, info) else "→"
+                            color = "color:var(--green)" if _is_improvement(pk, info) else ""
+                            style = f' style="{color}"' if color else ""
+                            lines.append(f'<span{style}>{arrow} {_esc(info["desc"])}: 目标库={info["hbcore"]} → 候选={info["candidate"]}</span><br>')
+                        lines.append('</div>')
+                    if e.get("includes_only_in_cand"):
+                        incs = "`, `".join(e["includes_only_in_cand"])
+                        lines.append(f'<div class="file-meta">候选新增 include: <code>{_esc(incs)}</code></div>')
+                    lines.append('</div>')
+                lines.append('</div>')
+
+        lines.append('</div></details>')
+
+    # ── MANDATORY 整合清单 ──
+    has_gaps = any("error" not in r and (r["new_files"] or r["diff_files"] or r["impl_diff_files"])
+                   for r in all_results)
+    if has_gaps:
+        lines.append('<div class="mandatory">')
+        lines.append('<h2>MANDATORY 整合清单</h2>')
+        for r in all_results:
+            if "error" in r:
+                continue
+            if not r["new_files"] and not r["diff_files"] and not r["impl_diff_files"]:
+                continue
+            lines.append(f'<div class="mandatory-module"><h3>{_esc(r["module"])}</h3>')
+            idx = 1
+            for entry in r["new_files"]:
+                syms = ", ".join(f"<code>{_esc(s)}</code>" for s in entry["new_symbols"][:5])
+                lines.append(f'<div class="mandatory-item">{idx}. {tag_badge("MANDATORY-IMPORT")} '
+                             f'<code>{_esc(entry["filename"])}</code> ← <code>{_esc(entry["source"])}</code>')
+                if syms:
+                    lines.append(f'<div class="file-meta">关键符号: {syms}</div>')
+                lines.append('</div>')
+                idx += 1
+            for entry in r["diff_files"]:
+                if entry["new_symbols_count"] > 0:
+                    syms = ", ".join(f"<code>{_esc(s)}</code>" for s in entry["new_symbols"][:5])
+                    lines.append(f'<div class="mandatory-item">{idx}. {tag_badge("MANDATORY-EVAL")} '
+                                 f'<code>{_esc(entry["filename"])}</code> — 候选有 {entry["new_symbols_count"]} 个新符号')
+                    if syms:
+                        lines.append(f'<div class="file-meta">新增: {syms}</div>')
+                    lines.append('</div>')
+                    idx += 1
+            for entry in r["impl_diff_files"]:
+                pat_highlights = [info["desc"] for pk, info in (entry.get("pattern_diff") or {}).items()
+                                  if _is_improvement(pk, info)]
+                if pat_highlights:
+                    lines.append(f'<div class="mandatory-item">{idx}. {tag_badge("EVAL-IMPL")} '
+                                 f'<code>{_esc(entry["filename"])}</code> — 实现改进: {_esc(", ".join(pat_highlights))}</div>')
+                    idx += 1
+                elif entry.get("hbcore_lines", 0) != entry.get("cand_lines", 0):
+                    diff_pct = abs(entry["cand_lines"] - entry["hbcore_lines"]) / max(entry["hbcore_lines"], 1) * 100
+                    if diff_pct > 5:
+                        lines.append(f'<div class="mandatory-item">{idx}. {tag_badge("EVAL-IMPL")} '
+                                     f'<code>{_esc(entry["filename"])}</code> — 行数差 {diff_pct:.0f}%</div>')
+                        idx += 1
+            lines.append('</div>')
+        lines.append('</div>')
+
+    lines.append('</div></body></html>')
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+    html_path.write_text("\n".join(lines), encoding="utf-8")
+
+
 def _is_improvement(pattern_key: str, info: dict) -> bool:
     """判断模式变化是否是改进方向"""
     hv, cv = info["hbcore"], info["candidate"]
@@ -638,8 +878,11 @@ def main():
                     print(f"    ~ {e['filename']} ({e['hbcore_lines']}→{e['cand_lines']}行{extra})")
 
     report = generate_report(all_results, output_path, target_root)
+    html_path = output_path.with_suffix(".html")
+    generate_html_report(all_results, html_path, target_root)
     print(f"\n{'='*60}")
     print(f"报告已写入: {output_path}")
+    print(f"HTML 已生成: {html_path}")
     total_issues = sum(
         len(r.get("new_files", [])) + len(r.get("diff_files", [])) + len(r.get("impl_diff_files", []))
         for r in all_results if "error" not in r
