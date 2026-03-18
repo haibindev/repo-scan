@@ -200,10 +200,6 @@ Edit `config/ignore-patterns.json` to customize patterns:
 
 **[haibindev.github.io](https://haibindev.github.io/)** — personal site & blog
 
-WeChat public account: **海滨code**
-
-<img src="images/wechat-qr.jpg" alt="WeChat QR code" width="160"/>
-
 ## License
 
 [MIT](LICENSE)
