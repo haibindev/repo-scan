@@ -196,6 +196,14 @@ Edit `config/ignore-patterns.json` to customize patterns:
 
 [![Star History Chart](https://api.star-history.com/svg?repos=haibindev/repo-scan&type=Date)](https://star-history.com/#haibindev/repo-scan&Date)
 
+## About
+
+**[haibindev.github.io](https://haibindev.github.io/)** — personal site & blog
+
+WeChat public account: **海滨code**
+
+<img src="images/wechat-qr.jpg" alt="WeChat QR code" width="160"/>
+
 ## License
 
 [MIT](LICENSE)

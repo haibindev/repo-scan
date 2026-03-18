@@ -196,6 +196,14 @@ repo-scan/
 
 [![Star History Chart](https://api.star-history.com/svg?repos=haibindev/repo-scan&type=Date)](https://star-history.com/#haibindev/repo-scan&Date)
 
+## 关于作者
+
+个人主页：**[haibindev.github.io](https://haibindev.github.io/)**
+
+微信公众号：**海滨code**
+
+<img src="images/wechat-qr.jpg" alt="公众号二维码" width="160"/>
+
 ## 许可证
 
 [MIT](LICENSE)
