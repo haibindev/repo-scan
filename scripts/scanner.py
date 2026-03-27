@@ -21,6 +21,7 @@ DEFAULT_NOISE_DIRS = {
     "cmake-build-debug", "cmake-build-release",
     ".gradle", "build", "target", ".apt_generated", "generated",
     "DerivedData", "Pods", ".build", "xcuserdata",
+    "TestResults", "artifacts",
     "node_modules", "dist", ".next", ".nuxt", ".output", "coverage",
 }
 
@@ -57,6 +58,7 @@ TECH_STACKS = {
     "C/C++":        {".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hxx"},
     "Java/Android": {".java", ".kt", ".aidl"},
     "iOS (OC/Swift)": {".m", ".mm", ".swift"},
+    "C#/.NET":      {".cs"},
     "Web/JS/TS":    {".ts", ".tsx", ".js", ".jsx", ".vue", ".svelte"},
     "CSS/Style":    {".css", ".scss", ".less"},
 }
@@ -71,9 +73,13 @@ BUILD_FILE_MAP = {
     "Podfile":        "CocoaPods",
     "Package.swift":  "SPM",
     "package.json":   "npm",
+    "packages.config": "NuGet",
+    "global.json":   ".NET SDK",
+    "Directory.Build.props": "MSBuild",
 }
 BUILD_EXT_MAP = {
     ".vcxproj":   "MSVC",
+    ".csproj":    ".NET (C#)",
     ".sln":       "VS Solution",
     ".xcodeproj": "Xcode",
     ".pro":       "qmake",

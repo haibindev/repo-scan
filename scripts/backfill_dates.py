@@ -24,6 +24,7 @@ SOURCE_EXTS = {
     '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hxx',
     '.java', '.kt', '.aidl',
     '.m', '.mm', '.swift',
+    '.cs',
     '.ts', '.tsx', '.js', '.jsx', '.vue', '.svelte',
     '.css', '.scss', '.less',
 }
@@ -36,6 +37,7 @@ NOISE_DIRS = {
     "cmake-build-debug", "cmake-build-release",
     ".gradle", "build", "target", ".apt_generated", "generated",
     "DerivedData", "Pods", ".build", "xcuserdata",
+    "TestResults", "artifacts",
     "node_modules", "dist", ".next", ".nuxt", ".output", "coverage",
 }
 

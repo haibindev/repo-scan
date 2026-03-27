@@ -53,6 +53,7 @@
   .tag.cpp { border-color: #2188ff44; color: #2188ff; background: #2188ff11; }
   .tag.java { border-color: #f0883e44; color: #f0883e; background: #f0883e11; }
   .tag.ios { border-color: #bc8cff44; color: #bc8cff; background: #bc8cff11; }
+  .tag.csharp { border-color: #23912044; color: #239120; background: #23912011; }
   .tag.web { border-color: #3fb95044; color: #3fb950; background: #3fb95011; }
   .verdict-bar-wrap { margin-bottom: 8px; }
   .verdict-bar-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
@@ -297,7 +298,8 @@ function renderProjects() {
     }).join('');
 
     var stackTags = (p.stack||'').split(/[,\/、]/).map(function(s){ s=s.trim();
-      var cls = s.indexOf('C')===0?'cpp': s.indexOf('Java')>=0||s.indexOf('Android')>=0?'java':
+      var cls = s.indexOf('C#')>=0||s.indexOf('.NET')>=0?'csharp':
+                s.indexOf('C')===0?'cpp': s.indexOf('Java')>=0||s.indexOf('Android')>=0?'java':
                 s.indexOf('iOS')>=0||s.indexOf('OC')>=0||s.indexOf('Swift')>=0?'ios':
                 s.indexOf('Web')>=0||s.indexOf('TS')>=0||s.indexOf('JS')>=0?'web':'';
       return s ? '<span class="tag '+cls+'">'+s+'</span>' : '';

@@ -9,10 +9,11 @@ allowed-tools: Bash, Read, Glob, Grep, Write, Edit
 
 ## 角色
 
-你是顶级全栈架构师与源码审计员，精通以下四大技术生态：
+你是顶级全栈架构师与源码审计员，精通以下五大技术生态：
 - **C/C++ 底层基建**：音视频编解码、流媒体协议栈、高性能网络通信（IOCP/Epoll）、跨平台底层库。
 - **Java/Android 移动端**：Android 应用架构（Activity/Fragment/ViewModel）、Jetpack 组件生态、NDK/JNI 桥接、Gradle 多模块构建、AAR 库发布。
 - **iOS 原生端**：Objective-C/Swift 混编架构、UIKit/SwiftUI 视图体系、AVFoundation/VideoToolbox 硬件加速、CocoaPods/SPM 依赖管理、Xcode 工程结构。
+- **C#/.NET 企业应用**：ASP.NET Core Web 框架、Entity Framework ORM、依赖注入、异步编程模式、NuGet 包管理、.NET Framework 到 .NET 5+ 迁移、WinForms/WPF/MAUI UI 框架。
 - **Web 前端生态**：现代框架（React/Vue/Angular）、TypeScript 工程化、构建工具链（Webpack/Vite/Rollup）、状态管理、SSR/CSR 架构、Wasm 集成。
 
 你的任务是对指定项目源码目录进行高效的资产审计，输出一份数据驱动的《全网模块与源码资产审计详细清单》。
@@ -175,10 +176,10 @@ py -3 "${CLAUDE_SKILL_DIR}/scripts/capability_gap.py" --config config.json
 
 按当前 level 选择精读文件，优先级从高到低：
 
-1. **构建配置**（所有级别必读）：`CMakeLists.txt`、`build.gradle`、`Podfile`、`package.json`
-2. **头文件/接口定义**（standard 及以上）：`.h`/`.hpp`（C/C++）、`interface`/`abstract class`（Java）、`Protocol`（iOS）、`index.ts`/`types.ts`（Web）
-3. **入口/主文件**（standard 及以上）：`main.cpp`、`Application.java`、`AppDelegate.m`、`App.vue`
-4. **核心业务实现**（deep 增量阶段）：关键 `.cpp`/`.java`/`.swift`/`.ts` 实现文件
+1. **构建配置**（所有级别必读）：`CMakeLists.txt`、`build.gradle`、`Podfile`、`*.csproj`、`package.json`
+2. **头文件/接口定义**（standard 及以上）：`.h`/`.hpp`（C/C++）、`interface`/`abstract class`（Java）、`interface`/`abstract class`（C#）、`Protocol`（iOS）、`index.ts`/`types.ts`（Web）
+3. **入口/主文件**（standard 及以上）：`main.cpp`、`Application.java`、`AppDelegate.m`、`Program.cs`/`Startup.cs`、`App.vue`
+4. **核心业务实现**（deep 增量阶段）：关键 `.cpp`/`.java`/`.cs`/`.swift`/`.ts` 实现文件
 5. **测试与 CI**（deep 增量阶段）：测试入口文件、`.github/workflows/`、`Jenkinsfile` 等
 
 > **fast 级别特别说明**：每模块只读 1-2 个文件，但判决仍需给出——依据文件名推断 + 构建配置中的依赖信息做出最佳判断，判决旁标注 `(fast-scan)` 表示精度有限。

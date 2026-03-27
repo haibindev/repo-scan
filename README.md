@@ -7,7 +7,7 @@
 
 **English** | [中文](README_zh.md)
 
-> Every ecosystem has its own dependency manager, but **no tool looks across C++, Android, iOS, and Web to tell you: how much code is actually yours, what's third-party, and what's dead weight.**
+> Every ecosystem has its own dependency manager, but **no tool looks across C++, Android, iOS, C#/.NET, and Web to tell you: how much code is actually yours, what's third-party, and what's dead weight.**
 >
 > **repo-scan** gives you the answer — a cross-stack source code asset audit that classifies every file, identifies every dependency, and delivers an actionable verdict for each module. One command, zero dependencies, interactive HTML report.
 
@@ -17,7 +17,7 @@
 
 ## The Problem
 
-You're staring at a monorepo with 200+ directories, 50,000 files, four tech stacks, and third-party code mixed into source folders. Before you can refactor, merge, or make any architectural decision, you need answers:
+You're staring at a monorepo with 200+ directories, 50,000 files, multiple tech stacks, and third-party code mixed into source folders. Before you can refactor, merge, or make any architectural decision, you need answers:
 
 - Which modules are **core assets** worth investing in?
 - Which are **duplicate wheels** that should be merged?
@@ -30,7 +30,7 @@ Running `cloc` gives you line counts. Running dependency scanners gives you one 
 
 | | Traditional tools | repo-scan |
 |---|---|---|
-| **Scope** | Single language/ecosystem | C/C++, Java/Android, iOS, Web — unified |
+| **Scope** | Single language/ecosystem | C/C++, Java/Android, iOS, C#/.NET, Web — unified |
 | **Third-party detection** | Declared deps only | Source-embedded libs too (50+ known libraries) |
 | **Output** | Raw metrics | Actionable 4-level verdicts per module |
 | **Monorepo** | Flat file list | Hierarchical scan with drill-down HTML |
@@ -38,7 +38,7 @@ Running `cloc` gives you line counts. Running dependency scanners gives you one 
 
 ## Core Capabilities
 
-- **Cross-stack unified view** — C/C++, Java/Android, iOS (OC/Swift), Web (TS/JS/Vue) in a single report
+- **Cross-stack unified view** — C/C++, Java/Android, iOS (OC/Swift), C#/.NET, Web (TS/JS/Vue) in a single report
 - **Three-way file classification** — Project code / third-party / build artifacts with accurate size metrics
 - **Third-party detection** — Auto-identifies 50+ libraries (FFmpeg, Boost, OpenSSL...) with version extraction from headers, configs, and package files
 - **Four-level verdicts** — Every module gets a decision: **Core Asset** / **Extract & Merge** / **Rebuild** / **Deprecate**

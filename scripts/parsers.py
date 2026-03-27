@@ -418,25 +418,28 @@ def estimate_stack(modules, text):
     cpp_m = re.search(r'C/C\+\+.*?(\d+)\s*(?:文件|files)', text)
     java_m = re.search(r'Java.*?(\d+)\s*(?:文件|files)', text)
     ios_m = re.search(r'iOS.*?(\d+)\s*(?:文件|files)', text)
+    csharp_m = re.search(r'C#.*?(\d+)\s*(?:文件|files)', text)
     web_m = re.search(r'Web.*?(\d+)\s*(?:文件|files)', text)
 
     cpp = int(cpp_m.group(1)) if cpp_m else 0
     java = int(java_m.group(1)) if java_m else 0
     ios = int(ios_m.group(1)) if ios_m else 0
+    csharp = int(csharp_m.group(1)) if csharp_m else 0
     web = int(web_m.group(1)) if web_m else 0
 
-    total = cpp + java + ios + web
+    total = cpp + java + ios + csharp + web
     if total == 0:
-        return {'cpp': 100, 'java': 0, 'ios': 0, 'web': 0, 'other': 0}
+        return {'cpp': 100, 'java': 0, 'ios': 0, 'csharp': 0, 'web': 0, 'other': 0}
 
     other = 0
     cpp_pct = round(cpp / total * 100)
     java_pct = round(java / total * 100)
     ios_pct = round(ios / total * 100)
+    csharp_pct = round(csharp / total * 100)
     web_pct = round(web / total * 100)
-    other = 100 - cpp_pct - java_pct - ios_pct - web_pct
+    other = 100 - cpp_pct - java_pct - ios_pct - csharp_pct - web_pct
 
-    return {'cpp': cpp_pct, 'java': java_pct, 'ios': ios_pct, 'web': web_pct, 'other': max(0, other)}
+    return {'cpp': cpp_pct, 'java': java_pct, 'ios': ios_pct, 'csharp': csharp_pct, 'web': web_pct, 'other': max(0, other)}
 
 def parse_source_dates(text):
     """从 Section 1 Overall Statistics 中提取源码文件修改日期范围"""

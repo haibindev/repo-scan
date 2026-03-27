@@ -8,6 +8,7 @@
     "java_android": [".gradle", "build", "target", ".apt_generated", "generated"],
     "ios": ["DerivedData", "Pods", ".build", "xcuserdata"],
     "web": ["node_modules", "dist", ".next", ".nuxt", ".output", "coverage"],
+    "csharp": ["bin", "obj", ".vs", "packages", "TestResults", "artifacts"],
     "rust": ["target"]
   },
 
